@@ -1,8 +1,9 @@
 #![allow(dead_code)]
+#![feature(strict_overflow_ops)]
 
 use std::{
     array::from_fn,
-    fmt,
+    fmt::{self},
     ops::{Index, IndexMut},
 };
 
@@ -70,16 +71,21 @@ impl<T: Translatable> Octree<T> {
                 self.nodes[node] = n;
                 Ok(())
             }
+
             NodeType::Leaf(e) => {
                 let children = self.nodes.branch(node, n.aabb);
-                n.ntype = NodeType::Branch(children);
+                n.ntype = NodeType::Branch(Branch::new(children));
                 self.nodes[node] = n;
                 self.rinsert(e, node, self.elements[e].translation())?;
                 self.rinsert(element, node, position)?;
                 Ok(())
             }
-            NodeType::Branch(_) => {
-                let child: NodeId = n.child_by_pos(position)?;
+
+            NodeType::Branch(ref mut branch) => {
+                branch.increment();
+                self.nodes[node] = n;
+
+                let child: NodeId = n.find_child(position)?;
                 self.rinsert(element, child, position)?;
                 Ok(())
             }
@@ -256,7 +262,7 @@ impl Node {
         }
     }
 
-    fn local_child_by_pos(&self, position: UVec3) -> usize {
+    fn find_child_index(&self, position: UVec3) -> usize {
         let center = self.aabb.center();
 
         let x = if position.x < center.x as u32 { 0 } else { 1 };
@@ -266,10 +272,10 @@ impl Node {
         x | y << 1 | z << 2
     }
 
-    fn child_by_pos(&self, position: UVec3) -> Result<NodeId, TreeError> {
+    fn find_child(&self, position: UVec3) -> Result<NodeId, TreeError> {
         match self.ntype {
-            NodeType::Branch(children) => {
-                let idx = self.local_child_by_pos(position);
+            NodeType::Branch(Branch { children, .. }) => {
+                let idx = self.find_child_index(position);
                 Ok(children[idx])
             }
             _ => {
@@ -287,6 +293,19 @@ impl Node {
 
         lemin.all() && gtmax.all()
     }
+
+    fn increment(&mut self) -> Result<(), TreeError> {
+        match self.ntype {
+            NodeType::Branch(ref mut branch) => {
+                branch.increment();
+                Ok(())
+            }
+            _ => Err(TreeError::NotBranch(format!(
+                "Attemt to increment child count for {} node",
+                self.ntype
+            ))),
+        }
+    }
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
@@ -294,7 +313,7 @@ enum NodeType {
     #[default]
     Empty,
     Leaf(ElementId),
-    Branch([NodeId; 8]),
+    Branch(Branch),
 }
 
 impl fmt::Display for NodeType {
@@ -304,6 +323,34 @@ impl fmt::Display for NodeType {
             NodeType::Leaf(e) => write!(f, "NodeType: Leaf({e})"),
             NodeType::Branch(_) => write!(f, "NodeType: Branch()"),
         }
+    }
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Debug)]
+struct Branch {
+    children: [NodeId; 8],
+    filled: u8,
+}
+
+impl Branch {
+    fn new(children: [NodeId; 8]) -> Self {
+        Branch {
+            children,
+            ..Default::default()
+        }
+    }
+
+    fn filled(children: [NodeId; 8], filled: u8) -> Self {
+        Branch { children, filled }
+    }
+
+    fn increment(&mut self) {
+        self.filled = self.filled.strict_add(1);
+        debug_assert!(self.filled <= 8);
+    }
+
+    fn decrement(&mut self) {
+        self.filled = self.filled.strict_sub(1);
     }
 }
 
@@ -399,6 +446,7 @@ mod tests {
         assert_eq!(tree.nodes.garbage_len(), 0);
 
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
+        assert_eq!(tree.nodes[0.into()].parent, None);
 
         let c1 = DummyCell::new(UVec3::new(1, 1, 1));
         tree.insert(c1).unwrap();
@@ -410,6 +458,7 @@ mod tests {
         assert_eq!(tree.nodes.garbage_len(), 0);
 
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.into()));
+        assert_eq!(tree.nodes[0.into()].parent, None);
 
         let c2 = DummyCell::new(UVec3::new(9, 9, 9));
         tree.insert(c2).unwrap();
@@ -420,8 +469,17 @@ mod tests {
         assert_eq!(tree.nodes.len(), 9);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
+        assert_eq!(tree.nodes[0.into()].parent, None);
+        let children = from_fn(|i| NodeId(i as u32 + 1));
+        assert_eq!(
+            tree.nodes[0.into()].ntype,
+            NodeType::Branch(Branch::filled(children, 2))
+        );
+
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(0.into()));
+        assert_eq!(tree.nodes[1.into()].parent, Some(0.into()));
         assert_eq!(tree.nodes[8.into()].ntype, NodeType::Leaf(1.into()));
+        assert_eq!(tree.nodes[8.into()].parent, Some(0.into()));
         for i in 2..8 {
             assert_eq!(tree.nodes[i.into()].ntype, NodeType::Empty);
         }
