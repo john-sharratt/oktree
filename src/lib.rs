@@ -22,6 +22,7 @@ trait Translatable {
 struct Octree<T: Translatable> {
     elements: Pool<T>,
     nodes: Pool<Node>,
+    map: Pool<NodeId>,
     root: NodeId,
 }
 
@@ -30,6 +31,7 @@ impl<T: Translatable> Default for Octree<T> {
         Octree {
             elements: default(),
             nodes: default(),
+            map: default(),
             root: default(),
         }
     }
@@ -40,6 +42,7 @@ impl<T: Translatable> Octree<T> {
         Octree {
             elements: default(),
             nodes: Pool::from_aabb(aabb),
+            map: default(),
             root: default(),
         }
     }
@@ -74,6 +77,7 @@ impl<T: Translatable> Octree<T> {
 
             NodeType::Leaf(e) => {
                 let children = self.nodes.branch(node, n.aabb);
+                self.map.branch(children);
                 n.ntype = NodeType::Branch(Branch::new(children));
                 self.nodes[node] = n;
                 self.rinsert(e, node, self.elements[e].translation())?;
@@ -102,6 +106,17 @@ impl Default for Pool<Node> {
     fn default() -> Self {
         let root = Node::default();
         let vec = vec![root];
+
+        Pool {
+            vec,
+            garbage: default(),
+        }
+    }
+}
+
+impl Default for Pool<NodeId> {
+    fn default() -> Self {
+        let vec = vec![0.into()];
 
         Pool {
             vec,
@@ -142,6 +157,20 @@ impl<T: Translatable> Index<ElementId> for Pool<T> {
 }
 
 impl<T: Translatable> IndexMut<ElementId> for Pool<T> {
+    fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
+        &mut self.vec[index.0 as usize]
+    }
+}
+
+impl Index<ElementId> for Pool<NodeId> {
+    type Output = NodeId;
+
+    fn index(&self, index: ElementId) -> &Self::Output {
+        &self.vec[index.0 as usize]
+    }
+}
+
+impl IndexMut<ElementId> for Pool<NodeId> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         &mut self.vec[index.0 as usize]
     }
@@ -220,6 +249,16 @@ impl Pool<Node> {
         let aabb = Aabb3d { min, max };
         let node = Node::from_aabb(aabb, Some(parent));
         self.insert(node)
+    }
+}
+
+impl Pool<NodeId> {
+    fn insert(&mut self, t: NodeId) -> ElementId {
+        self._insert(t).into()
+    }
+
+    fn branch(&mut self, nodes: [NodeId; 8]) {
+        nodes.map(|n| self.insert(n));
     }
 }
 
@@ -445,8 +484,13 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
+        assert_eq!(tree.map.len(), 1);
+        assert_eq!(tree.map.garbage_len(), 0);
+
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
         assert_eq!(tree.nodes[0.into()].parent, None);
+
+        assert_eq!(tree.map[0.into()], 0.into());
 
         let c1 = DummyCell::new(UVec3::new(1, 1, 1));
         tree.insert(c1).unwrap();
@@ -457,8 +501,13 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
+        assert_eq!(tree.map.len(), 1);
+        assert_eq!(tree.map.garbage_len(), 0);
+
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.into()));
         assert_eq!(tree.nodes[0.into()].parent, None);
+
+        assert_eq!(tree.map[0.into()], 0.into());
 
         let c2 = DummyCell::new(UVec3::new(9, 9, 9));
         tree.insert(c2).unwrap();
@@ -469,7 +518,11 @@ mod tests {
         assert_eq!(tree.nodes.len(), 9);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
+        assert_eq!(tree.map.len(), 9);
+        assert_eq!(tree.map.garbage_len(), 0);
+
         assert_eq!(tree.nodes[0.into()].parent, None);
+
         let children = from_fn(|i| NodeId(i as u32 + 1));
         assert_eq!(
             tree.nodes[0.into()].ntype,
@@ -482,6 +535,10 @@ mod tests {
         assert_eq!(tree.nodes[8.into()].parent, Some(0.into()));
         for i in 2..8 {
             assert_eq!(tree.nodes[i.into()].ntype, NodeType::Empty);
+        }
+
+        for i in 0..9 {
+            assert_eq!(tree.map[i.into()], i.into());
         }
     }
 }
