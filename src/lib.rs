@@ -3,6 +3,7 @@
 
 use std::{
     array::from_fn,
+    error::Error,
     fmt::{self},
     ops::{Index, IndexMut},
 };
@@ -19,10 +20,15 @@ trait Translatable {
     fn translation(&self) -> UVec3;
 }
 
+trait Nodable {
+    fn set_node(&mut self, node: NodeId);
+
+    fn get_node(&self) -> NodeId;
+}
+
 struct Octree<T: Translatable> {
     elements: Pool<T>,
     nodes: Pool<Node>,
-    map: Pool<NodeId>,
     root: NodeId,
 }
 
@@ -31,18 +37,16 @@ impl<T: Translatable> Default for Octree<T> {
         Octree {
             elements: default(),
             nodes: default(),
-            map: default(),
             root: default(),
         }
     }
 }
 
-impl<T: Translatable> Octree<T> {
+impl<T: Translatable + Nodable> Octree<T> {
     pub fn from_aabb(aabb: Aabb3d) -> Self {
         Octree {
             elements: default(),
             nodes: Pool::from_aabb(aabb),
-            map: default(),
             root: default(),
         }
     }
@@ -67,32 +71,53 @@ impl<T: Translatable> Octree<T> {
         node: NodeId,
         position: UVec3,
     ) -> Result<(), TreeError> {
-        let mut n = self.nodes[node];
-        match n.ntype {
+        let ntype = self.nodes[node].ntype;
+        match ntype {
             NodeType::Empty => {
+                let n = &mut self.nodes[node];
                 n.ntype = NodeType::Leaf(element);
-                self.nodes[node] = n;
+                if let Some(parent) = n.parent {
+                    self.nodes[parent].increment()?;
+                }
+                self.elements[element].set_node(node);
                 Ok(())
             }
 
             NodeType::Leaf(e) => {
-                let children = self.nodes.branch(node, n.aabb);
-                self.map.branch(children);
+                let aabb = self.nodes[node].aabb;
+                let children = self.nodes.branch(node, aabb);
+
+                let n = &mut self.nodes[node];
                 n.ntype = NodeType::Branch(Branch::new(children));
-                self.nodes[node] = n;
                 self.rinsert(e, node, self.elements[e].translation())?;
                 self.rinsert(element, node, position)?;
                 Ok(())
             }
 
-            NodeType::Branch(ref mut branch) => {
-                branch.increment();
-                self.nodes[node] = n;
-
+            NodeType::Branch(_) => {
+                let n = &self.nodes[node];
                 let child: NodeId = n.find_child(position)?;
                 self.rinsert(element, child, position)?;
                 Ok(())
             }
+        }
+    }
+
+    fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
+        let node = self.elements[element].get_node();
+        let n = &mut self.nodes[node];
+        let parent = n.parent;
+        match n.ntype {
+            NodeType::Leaf(_) => {
+                self.elements.remove(element);
+                n.ntype = NodeType::Empty;
+                self.nodes.collapse(parent)?;
+                Ok(())
+            }
+            _ => Err(TreeError::NotBranch(format!(
+                "Attemt to remove element from {}",
+                n.ntype
+            ))),
         }
     }
 }
@@ -114,17 +139,6 @@ impl Default for Pool<Node> {
     }
 }
 
-impl Default for Pool<NodeId> {
-    fn default() -> Self {
-        let vec = vec![0.into()];
-
-        Pool {
-            vec,
-            garbage: default(),
-        }
-    }
-}
-
 impl<T: Translatable> Default for Pool<T> {
     fn default() -> Self {
         Pool {
@@ -138,12 +152,20 @@ impl Index<NodeId> for Pool<Node> {
     type Output = Node;
 
     fn index(&self, index: NodeId) -> &Self::Output {
+        debug_assert!(
+            !self.garbage.contains(&index.into()),
+            "Indexing garbaged node"
+        );
         &self.vec[index.0 as usize]
     }
 }
 
 impl IndexMut<NodeId> for Pool<Node> {
     fn index_mut(&mut self, index: NodeId) -> &mut Self::Output {
+        debug_assert!(
+            !self.garbage.contains(&index.into()),
+            "Mut Indexing garbaged node"
+        );
         &mut self.vec[index.0 as usize]
     }
 }
@@ -152,26 +174,20 @@ impl<T: Translatable> Index<ElementId> for Pool<T> {
     type Output = T;
 
     fn index(&self, index: ElementId) -> &Self::Output {
+        debug_assert!(
+            !self.garbage.contains(&index.into()),
+            "Indexing garbaged element"
+        );
         &self.vec[index.0 as usize]
     }
 }
 
 impl<T: Translatable> IndexMut<ElementId> for Pool<T> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
-        &mut self.vec[index.0 as usize]
-    }
-}
-
-impl Index<ElementId> for Pool<NodeId> {
-    type Output = NodeId;
-
-    fn index(&self, index: ElementId) -> &Self::Output {
-        &self.vec[index.0 as usize]
-    }
-}
-
-impl IndexMut<ElementId> for Pool<NodeId> {
-    fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
+        debug_assert!(
+            !self.garbage.contains(&index.into()),
+            "Mut Indexing garbaged element"
+        );
         &mut self.vec[index.0 as usize]
     }
 }
@@ -188,7 +204,7 @@ impl<T> Pool<T> {
     }
 
     fn len(&self) -> usize {
-        self.vec.len()
+        self.vec.len() - self.garbage_len()
     }
 
     fn garbage_len(&self) -> usize {
@@ -210,8 +226,8 @@ impl Pool<Node> {
         self._insert(t).into()
     }
 
-    fn remove(&mut self, id: NodeId) {
-        self.garbage.push(id.into());
+    fn remove(&mut self, node: NodeId) {
+        self.garbage.push(node.into());
     }
 
     fn branch(&mut self, parent: NodeId, aabb: Aabb3d) -> [NodeId; 8] {
@@ -220,6 +236,21 @@ impl Pool<Node> {
         let mid = aabb.center().as_uvec3();
 
         from_fn(|i| self.geni_child(i, min, mid, max, parent))
+    }
+
+    fn collapse(&mut self, parent: Option<NodeId>) -> Result<(), TreeError> {
+        if let Some(parent) = parent {
+            let p = &mut self[parent];
+            p.decrement()?;
+            let parent = p.parent;
+            if p.fullness()? == 0 {
+                let children = p.collapse()?;
+                children.map(|child| self.remove(child));
+                self.collapse(parent)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn geni_child(
@@ -252,23 +283,13 @@ impl Pool<Node> {
     }
 }
 
-impl Pool<NodeId> {
-    fn insert(&mut self, t: NodeId) -> ElementId {
-        self._insert(t).into()
-    }
-
-    fn branch(&mut self, nodes: [NodeId; 8]) {
-        nodes.map(|n| self.insert(n));
-    }
-}
-
 impl<T: Translatable> Pool<T> {
     fn insert(&mut self, t: T) -> ElementId {
         self._insert(t).into()
     }
 
-    fn remove(&mut self, id: ElementId) {
-        self.garbage.push(id.into());
+    fn remove(&mut self, element: ElementId) {
+        self.garbage.push(element.into());
     }
 }
 
@@ -343,6 +364,44 @@ impl Node {
                 "Attemt to increment child count for {} node",
                 self.ntype
             ))),
+        }
+    }
+
+    fn decrement(&mut self) -> Result<(), TreeError> {
+        match self.ntype {
+            NodeType::Branch(ref mut branch) => {
+                branch.decrement();
+                Ok(())
+            }
+            _ => Err(TreeError::NotBranch(format!(
+                "Attemt to decrement negative child count for {} node",
+                self.ntype
+            ))),
+        }
+    }
+
+    fn fullness(&self) -> Result<u8, TreeError> {
+        match self.ntype {
+            NodeType::Branch(Branch { filled, .. }) => Ok(filled),
+            _ => Err(TreeError::NotBranch(format!(
+                "Attemt to get child count for {} node",
+                self.ntype
+            ))),
+        }
+    }
+
+    fn collapse(&mut self) -> Result<[NodeId; 8], TreeError> {
+        match self.ntype {
+            NodeType::Branch(Branch { children, filled }) => match filled {
+                0 => {
+                    self.ntype = NodeType::Empty;
+                    Ok(children)
+                }
+                _ => Err(TreeError::CollapseNonEmpty(format!(
+                    "Collapsing a non empty branch"
+                ))),
+            },
+            _ => Err(TreeError::NotBranch(format!("Collapse a {}", self.ntype))),
         }
     }
 }
@@ -439,13 +498,19 @@ impl fmt::Display for ElementId {
 pub enum TreeError {
     OutOfTreeBounds(String),
     NotBranch(String),
+    NotLeaf(String),
+    CollapseNonEmpty(String),
 }
+
+impl Error for TreeError {}
 
 impl fmt::Display for TreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TreeError::OutOfTreeBounds(info) => write!(f, "Out of tree bounds. {info}"),
             TreeError::NotBranch(info) => write!(f, "Node is not a Branch. {info}"),
+            TreeError::NotLeaf(info) => write!(f, "Node is not a Leaf. {info}"),
+            TreeError::CollapseNonEmpty(info) => write!(f, "Collapsing non empty branch. {info}"),
         }
     }
 }
@@ -457,6 +522,7 @@ mod tests {
 
     struct DummyCell {
         position: UVec3,
+        node: NodeId,
     }
 
     impl Translatable for DummyCell {
@@ -465,9 +531,22 @@ mod tests {
         }
     }
 
+    impl Nodable for DummyCell {
+        fn get_node(&self) -> NodeId {
+            self.node
+        }
+
+        fn set_node(&mut self, node: NodeId) {
+            self.node = node
+        }
+    }
+
     impl DummyCell {
         fn new(position: UVec3) -> Self {
-            DummyCell { position }
+            DummyCell {
+                position,
+                node: default(),
+            }
         }
     }
 
@@ -484,13 +563,8 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
-        assert_eq!(tree.map.len(), 1);
-        assert_eq!(tree.map.garbage_len(), 0);
-
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
         assert_eq!(tree.nodes[0.into()].parent, None);
-
-        assert_eq!(tree.map[0.into()], 0.into());
 
         let c1 = DummyCell::new(UVec3::new(1, 1, 1));
         tree.insert(c1).unwrap();
@@ -501,13 +575,10 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
-        assert_eq!(tree.map.len(), 1);
-        assert_eq!(tree.map.garbage_len(), 0);
-
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.into()));
         assert_eq!(tree.nodes[0.into()].parent, None);
 
-        assert_eq!(tree.map[0.into()], 0.into());
+        assert_eq!(tree.elements[0.into()].get_node(), 0.into());
 
         let c2 = DummyCell::new(UVec3::new(9, 9, 9));
         tree.insert(c2).unwrap();
@@ -517,9 +588,6 @@ mod tests {
 
         assert_eq!(tree.nodes.len(), 9);
         assert_eq!(tree.nodes.garbage_len(), 0);
-
-        assert_eq!(tree.map.len(), 9);
-        assert_eq!(tree.map.garbage_len(), 0);
 
         assert_eq!(tree.nodes[0.into()].parent, None);
 
@@ -537,8 +605,35 @@ mod tests {
             assert_eq!(tree.nodes[i.into()].ntype, NodeType::Empty);
         }
 
-        for i in 0..9 {
-            assert_eq!(tree.map[i.into()], i.into());
-        }
+        assert_eq!(tree.elements[0.into()].get_node(), 1.into());
+        assert_eq!(tree.elements[1.into()].get_node(), 8.into());
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut tree = Octree::from_aabb(Aabb3d::new(
+            Vec3A::new(8.0, 8.0, 8.0),
+            Vec3A::new(8.0, 8.0, 8.0),
+        ));
+
+        let c1 = DummyCell::new(UVec3::new(1, 1, 1));
+        tree.insert(c1).unwrap();
+        let c2 = DummyCell::new(UVec3::new(2, 2, 2));
+        tree.insert(c2).unwrap();
+
+        assert_eq!(tree.nodes.len(), 25);
+        assert_eq!(tree.elements.len(), 2);
+
+        tree.remove(0.into()).unwrap();
+
+        assert_eq!(tree.elements.len(), 1);
+        assert_eq!(tree.nodes.len(), 25);
+
+        tree.remove(1.into()).unwrap();
+
+        assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.nodes.len(), 1);
+
+        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
     }
 }
