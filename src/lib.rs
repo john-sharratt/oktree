@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 #![feature(strict_overflow_ops)]
+#![feature(trait_alias)]
+
+pub mod bounding;
 
 use std::{
     array::from_fn,
@@ -8,16 +11,13 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use bevy::{
-    math::{
-        bounding::{Aabb3d, BoundingVolume},
-        Vec3A,
-    },
-    prelude::*,
-};
+use bounding::{Aabb, UVec3, Unsigned};
+use num::cast;
 
 trait Translatable {
-    fn translation(&self) -> UVec3;
+    type U: Unsigned;
+
+    fn translation(&self) -> UVec3<Self::U>;
 }
 
 trait Nodable {
@@ -25,29 +25,27 @@ trait Nodable {
 
     fn get_node(&self) -> NodeId;
 }
-
-struct Octree<T: Translatable> {
+#[derive(Default)]
+struct Octree<U, T>
+where
+    U: Unsigned,
+    T: Translatable<U = U> + Nodable,
+{
     elements: Pool<T>,
-    nodes: Pool<Node>,
+    nodes: Pool<Node<U>>,
     root: NodeId,
 }
 
-impl<T: Translatable> Default for Octree<T> {
-    fn default() -> Self {
+impl<U, T> Octree<U, T>
+where
+    U: Unsigned,
+    T: Translatable<U = U> + Nodable,
+{
+    pub fn from_aabb(aabb: Aabb<U>) -> Self {
         Octree {
-            elements: default(),
-            nodes: default(),
-            root: default(),
-        }
-    }
-}
-
-impl<T: Translatable + Nodable> Octree<T> {
-    pub fn from_aabb(aabb: Aabb3d) -> Self {
-        Octree {
-            elements: default(),
+            elements: Default::default(),
             nodes: Pool::from_aabb(aabb),
-            root: default(),
+            root: Default::default(),
         }
     }
 
@@ -69,7 +67,7 @@ impl<T: Translatable + Nodable> Octree<T> {
         &mut self,
         element: ElementId,
         node: NodeId,
-        position: UVec3,
+        position: UVec3<U>,
     ) -> Result<(), TreeError> {
         let ntype = self.nodes[node].ntype;
         match ntype {
@@ -94,9 +92,9 @@ impl<T: Translatable + Nodable> Octree<T> {
                 Ok(())
             }
 
-            NodeType::Branch(_) => {
+            NodeType::Branch(branch) => {
                 let n = &self.nodes[node];
-                let child: NodeId = n.find_child(position)?;
+                let child: NodeId = branch.find_child(position, n.aabb.center())?;
                 self.rinsert(element, child, position)?;
                 Ok(())
             }
@@ -114,7 +112,7 @@ impl<T: Translatable + Nodable> Octree<T> {
                 self.nodes.collapse(parent)?;
                 Ok(())
             }
-            _ => Err(TreeError::NotBranch(format!(
+            _ => Err(TreeError::NotLeaf(format!(
                 "Attemt to remove element from {}",
                 n.ntype
             ))),
@@ -127,14 +125,14 @@ struct Pool<T> {
     garbage: Vec<usize>,
 }
 
-impl Default for Pool<Node> {
+impl<U: Unsigned> Default for Pool<Node<U>> {
     fn default() -> Self {
         let root = Node::default();
         let vec = vec![root];
 
         Pool {
             vec,
-            garbage: default(),
+            garbage: Default::default(),
         }
     }
 }
@@ -142,14 +140,14 @@ impl Default for Pool<Node> {
 impl<T: Translatable> Default for Pool<T> {
     fn default() -> Self {
         Pool {
-            vec: default(),
-            garbage: default(),
+            vec: Default::default(),
+            garbage: Default::default(),
         }
     }
 }
 
-impl Index<NodeId> for Pool<Node> {
-    type Output = Node;
+impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
+    type Output = Node<U>;
 
     fn index(&self, index: NodeId) -> &Self::Output {
         debug_assert!(
@@ -160,7 +158,7 @@ impl Index<NodeId> for Pool<Node> {
     }
 }
 
-impl IndexMut<NodeId> for Pool<Node> {
+impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
     fn index_mut(&mut self, index: NodeId) -> &mut Self::Output {
         debug_assert!(
             !self.garbage.contains(&index.into()),
@@ -212,17 +210,17 @@ impl<T> Pool<T> {
     }
 }
 
-impl Pool<Node> {
-    fn from_aabb(aabb: Aabb3d) -> Self {
+impl<U: Unsigned> Pool<Node<U>> {
+    fn from_aabb(aabb: Aabb<U>) -> Self {
         let root = Node::from_aabb(aabb, None);
         let vec = vec![root];
         Pool {
             vec,
-            garbage: default(),
+            garbage: Default::default(),
         }
     }
 
-    fn insert(&mut self, t: Node) -> NodeId {
+    fn insert(&mut self, t: Node<U>) -> NodeId {
         self._insert(t).into()
     }
 
@@ -230,12 +228,41 @@ impl Pool<Node> {
         self.garbage.push(node.into());
     }
 
-    fn branch(&mut self, parent: NodeId, aabb: Aabb3d) -> [NodeId; 8] {
-        let min = aabb.min.as_uvec3();
-        let max = aabb.max.as_uvec3();
-        let mid = aabb.center().as_uvec3();
+    fn branch(&mut self, parent: NodeId, aabb: Aabb<U>) -> [NodeId; 8] {
+        let min = aabb.min;
+        let max = aabb.max;
+        let mid = aabb.center();
 
         from_fn(|i| self.geni_child(i, min, mid, max, parent))
+    }
+
+    fn geni_child(
+        &mut self,
+        i: usize,
+        min: UVec3<U>,
+        mid: UVec3<U>,
+        max: UVec3<U>,
+        parent: NodeId,
+    ) -> NodeId {
+        let x_mask = (i & 0b1) == 1;
+        let y_mask = (i & 0b10) == 1;
+        let z_mask = (i & 0b100) == 1;
+
+        let min = UVec3::new(
+            if x_mask { mid.x } else { min.x },
+            if y_mask { mid.y } else { min.y },
+            if z_mask { mid.z } else { min.z },
+        );
+
+        let max = UVec3::new(
+            if x_mask { max.x } else { mid.x },
+            if y_mask { max.y } else { mid.y },
+            if z_mask { max.z } else { mid.z },
+        );
+
+        let aabb = Aabb { min, max };
+        let node = Node::from_aabb(aabb, Some(parent));
+        self.insert(node)
     }
 
     fn collapse(&mut self, parent: Option<NodeId>) -> Result<(), TreeError> {
@@ -252,35 +279,6 @@ impl Pool<Node> {
 
         Ok(())
     }
-
-    fn geni_child(
-        &mut self,
-        i: usize,
-        min: UVec3,
-        mid: UVec3,
-        max: UVec3,
-        parent: NodeId,
-    ) -> NodeId {
-        let x_mask = (i & 0b1) == 1;
-        let y_mask = (i & 0b10) == 1;
-        let z_mask = (i & 0b100) == 1;
-
-        let min = Vec3A::new(
-            if x_mask { mid.x as f32 } else { min.x as f32 },
-            if y_mask { mid.y as f32 } else { min.y as f32 },
-            if z_mask { mid.z as f32 } else { min.z as f32 },
-        );
-
-        let max = Vec3A::new(
-            if x_mask { max.x as f32 } else { mid.x as f32 },
-            if y_mask { max.y as f32 } else { mid.y as f32 },
-            if z_mask { max.z as f32 } else { mid.z as f32 },
-        );
-
-        let aabb = Aabb3d { min, max };
-        let node = Node::from_aabb(aabb, Some(parent));
-        self.insert(node)
-    }
 }
 
 impl<T: Translatable> Pool<T> {
@@ -294,27 +292,27 @@ impl<T: Translatable> Pool<T> {
 }
 
 #[derive(Clone, Copy)]
-struct Node {
-    aabb: Aabb3d,
+struct Node<U: Unsigned> {
+    aabb: Aabb<U>,
     ntype: NodeType,
     parent: Option<NodeId>,
 }
 
-impl Default for Node {
+impl<U: Unsigned> Default for Node<U> {
     fn default() -> Self {
         Node {
-            aabb: Aabb3d {
-                min: Vec3A::ZERO,
-                max: Vec3A::ONE,
+            aabb: Aabb {
+                min: UVec3::new(cast(0).unwrap(), cast(0).unwrap(), cast(0).unwrap()),
+                max: UVec3::new(cast(1).unwrap(), cast(1).unwrap(), cast(1).unwrap()),
             },
-            ntype: default(),
-            parent: default(),
+            ntype: Default::default(),
+            parent: Default::default(),
         }
     }
 }
 
-impl Node {
-    fn from_aabb(aabb: Aabb3d, parent: Option<NodeId>) -> Self {
+impl<U: Unsigned> Node<U> {
+    fn from_aabb(aabb: Aabb<U>, parent: Option<NodeId>) -> Self {
         Node {
             aabb,
             parent,
@@ -322,34 +320,9 @@ impl Node {
         }
     }
 
-    fn find_child_index(&self, position: UVec3) -> usize {
-        let center = self.aabb.center();
-
-        let x = if position.x < center.x as u32 { 0 } else { 1 };
-        let y = if position.y < center.y as u32 { 0 } else { 1 };
-        let z = if position.z < center.z as u32 { 0 } else { 1 };
-
-        x | y << 1 | z << 2
-    }
-
-    fn find_child(&self, position: UVec3) -> Result<NodeId, TreeError> {
-        match self.ntype {
-            NodeType::Branch(Branch { children, .. }) => {
-                let idx = self.find_child_index(position);
-                Ok(children[idx])
-            }
-            _ => {
-                return Err(TreeError::NotBranch(format!(
-                    "Attempt to treat a node {} as a Branch",
-                    self.ntype
-                )))
-            }
-        }
-    }
-
-    fn contains(&self, position: UVec3) -> bool {
-        let lemin = self.aabb.min.as_uvec3().cmple(position);
-        let gtmax = self.aabb.max.as_uvec3().cmpgt(position);
+    fn contains(&self, position: UVec3<U>) -> bool {
+        let lemin = self.aabb.min.le(position);
+        let gtmax = self.aabb.max.gt(position);
 
         lemin.all() && gtmax.all()
     }
@@ -450,6 +423,20 @@ impl Branch {
     fn decrement(&mut self) {
         self.filled = self.filled.strict_sub(1);
     }
+
+    fn find_child<U: Unsigned>(
+        &self,
+        position: UVec3<U>,
+        center: UVec3<U>,
+    ) -> Result<NodeId, TreeError> {
+        let x = if position.x < center.x { 0 } else { 1 };
+        let y = if position.y < center.y { 0 } else { 1 };
+        let z = if position.z < center.z { 0 } else { 1 };
+
+        let idx = x | y << 1 | z << 2;
+
+        Ok(self.children[idx])
+    }
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
@@ -520,18 +507,19 @@ mod tests {
 
     use super::*;
 
-    struct DummyCell {
-        position: UVec3,
+    struct DummyCell<U: Unsigned> {
+        position: UVec3<U>,
         node: NodeId,
     }
 
-    impl Translatable for DummyCell {
-        fn translation(&self) -> UVec3 {
+    impl<U: Unsigned> Translatable for DummyCell<U> {
+        type U = U;
+        fn translation(&self) -> UVec3<U> {
             self.position
         }
     }
 
-    impl Nodable for DummyCell {
+    impl<U: Unsigned> Nodable for DummyCell<U> {
         fn get_node(&self) -> NodeId {
             self.node
         }
@@ -541,21 +529,18 @@ mod tests {
         }
     }
 
-    impl DummyCell {
-        fn new(position: UVec3) -> Self {
+    impl<U: Unsigned> DummyCell<U> {
+        fn new(position: UVec3<U>) -> Self {
             DummyCell {
                 position,
-                node: default(),
+                node: Default::default(),
             }
         }
     }
 
     #[test]
     fn test_insert() {
-        let mut tree = Octree::from_aabb(Aabb3d::new(
-            Vec3A::new(5.0, 5.0, 5.0),
-            Vec3A::new(5.0, 5.0, 5.0),
-        ));
+        let mut tree = Octree::from_aabb(Aabb::new(UVec3::new(4, 4, 4), 4));
 
         assert_eq!(tree.elements.len(), 0);
         assert_eq!(tree.elements.garbage_len(), 0);
@@ -566,7 +551,7 @@ mod tests {
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
         assert_eq!(tree.nodes[0.into()].parent, None);
 
-        let c1 = DummyCell::new(UVec3::new(1, 1, 1));
+        let c1 = DummyCell::new(UVec3::new(1u8, 1, 1));
         tree.insert(c1).unwrap();
 
         assert_eq!(tree.elements.len(), 1);
@@ -580,7 +565,7 @@ mod tests {
 
         assert_eq!(tree.elements[0.into()].get_node(), 0.into());
 
-        let c2 = DummyCell::new(UVec3::new(9, 9, 9));
+        let c2 = DummyCell::new(UVec3::new(7, 7, 7));
         tree.insert(c2).unwrap();
 
         assert_eq!(tree.elements.len(), 2);
@@ -611,16 +596,12 @@ mod tests {
 
     #[test]
     fn test_remove() {
-        let mut tree = Octree::from_aabb(Aabb3d::new(
-            Vec3A::new(8.0, 8.0, 8.0),
-            Vec3A::new(8.0, 8.0, 8.0),
-        ));
+        let mut tree = Octree::from_aabb(Aabb::new(UVec3::new(8u16, 8, 8), 8));
 
         let c1 = DummyCell::new(UVec3::new(1, 1, 1));
         tree.insert(c1).unwrap();
         let c2 = DummyCell::new(UVec3::new(2, 2, 2));
         tree.insert(c2).unwrap();
-
         assert_eq!(tree.nodes.len(), 25);
         assert_eq!(tree.elements.len(), 2);
 
@@ -634,6 +615,6 @@ mod tests {
         assert_eq!(tree.elements.len(), 0);
         assert_eq!(tree.nodes.len(), 1);
 
-        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
+        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty)
     }
 }
