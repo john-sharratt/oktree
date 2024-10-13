@@ -125,4 +125,11 @@ impl<U: Unsigned> Aabb<U> {
             ),
         }
     }
+
+    pub fn contains(&self, position: UVec3<U>) -> bool {
+        let lemin = self.min.le(position);
+        let gtmax = self.max.gt(position);
+
+        lemin.all() && gtmax.all()
+    }
 }

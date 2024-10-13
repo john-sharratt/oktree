@@ -52,7 +52,7 @@ where
     pub fn insert(&mut self, elem: T) -> Result<(), TreeError> {
         let position = elem.translation();
         let element = self.elements.insert(elem);
-        if self.nodes[self.root].contains(position) {
+        if self.nodes[self.root].aabb.contains(position) {
             self.rinsert(element, self.root, position)?;
             Ok(())
         } else {
@@ -318,13 +318,6 @@ impl<U: Unsigned> Node<U> {
             parent,
             ..Default::default()
         }
-    }
-
-    fn contains(&self, position: UVec3<U>) -> bool {
-        let lemin = self.aabb.min.le(position);
-        let gtmax = self.aabb.max.gt(position);
-
-        lemin.all() && gtmax.all()
     }
 
     fn increment(&mut self) -> Result<(), TreeError> {
