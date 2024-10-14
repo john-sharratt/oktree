@@ -92,8 +92,8 @@ where
             }
 
             NodeType::Branch(branch) => {
-                let n = &self.nodes[node];
-                let child: NodeId = branch.find_child(position, n.aabb.center())?;
+                let center = self.nodes[node].aabb.center();
+                let child: NodeId = branch.find_child(position, center)?;
                 self.rinsert(element, child, position)?;
                 Ok(())
             }
@@ -441,7 +441,7 @@ impl fmt::Display for ElementId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TreeError {
     OutOfTreeBounds(String),
     NotBranch(String),
@@ -512,7 +512,7 @@ mod tests {
         assert_eq!(tree.nodes[0.into()].parent, None);
 
         let c1 = DummyCell::new(UVec3::new(1u8, 1, 1));
-        tree.insert(c1).unwrap();
+        assert_eq!(tree.insert(c1), Ok(()));
 
         assert_eq!(tree.elements.len(), 1);
         assert_eq!(tree.elements.garbage_len(), 0);
@@ -526,7 +526,7 @@ mod tests {
         assert_eq!(tree.elements[0.into()].get_node(), 0.into());
 
         let c2 = DummyCell::new(UVec3::new(7, 7, 7));
-        tree.insert(c2).unwrap();
+        assert_eq!(tree.insert(c2), Ok(()));
 
         assert_eq!(tree.elements.len(), 2);
         assert_eq!(tree.elements.garbage_len(), 0);
@@ -559,9 +559,9 @@ mod tests {
         let mut tree = Octree::from_aabb(Aabb::new(UVec3::new(8u16, 8, 8), 8));
 
         let c1 = DummyCell::new(UVec3::new(1, 1, 1));
-        tree.insert(c1).unwrap();
+        assert_eq!(tree.insert(c1), Ok(()));
         let c2 = DummyCell::new(UVec3::new(2, 2, 2));
-        tree.insert(c2).unwrap();
+        assert_eq!(tree.insert(c2), Ok(()));
         assert_eq!(tree.nodes.len(), 25);
         assert_eq!(tree.elements.len(), 2);
 
@@ -576,5 +576,54 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
 
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty)
+    }
+
+    #[test]
+    fn test_insert_remove() {
+        let mut tree = Octree::from_aabb(Aabb::new(UVec3::new(4u8, 4, 4), 4));
+
+        let c1 = DummyCell::new(UVec3::new(1, 1, 1));
+        assert_eq!(tree.insert(c1), Ok(()));
+
+        let c2 = DummyCell::new(UVec3::new(2, 2, 1));
+        assert_eq!(tree.insert(c2), Ok(()));
+
+        let c3 = DummyCell::new(UVec3::new(6, 6, 1));
+        assert_eq!(tree.insert(c3), Ok(()));
+
+        let c4 = DummyCell::new(UVec3::new(7, 7, 1));
+        assert_eq!(tree.insert(c4), Ok(()));
+
+        let c5 = DummyCell::new(UVec3::new(6, 7, 1));
+        assert_eq!(tree.insert(c5), Ok(()));
+
+        assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
+        assert_eq!(tree.nodes[1.into()].fullness(), Ok(2));
+        assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
+
+        assert_eq!(tree.remove(0.into()), Ok(()));
+
+        assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
+        assert_eq!(tree.nodes[1.into()].fullness(), Ok(1));
+        assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
+
+        assert_eq!(tree.remove(1.into()), Ok(()));
+
+        assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
+        assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);
+        assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
+
+        assert_eq!(tree.remove(2.into()), Ok(()));
+        assert_eq!(tree.remove(3.into()), Ok(()));
+
+        assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
+        assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);
+        assert_eq!(tree.nodes[20.into()].fullness(), Ok(1));
+
+        assert_eq!(tree.remove(4.into()), Ok(()));
+
+        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
+        assert_eq!(tree.nodes.len(), 1);
+        assert_eq!(tree.elements.len(), 0);
     }
 }

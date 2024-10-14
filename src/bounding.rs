@@ -108,9 +108,9 @@ impl<U: Unsigned> Aabb<U> {
     }
 
     fn _split(&self, i: usize, center: UVec3<U>) -> Aabb<U> {
-        let x_mask = (i & 0b1) == 1;
-        let y_mask = (i & 0b10) == 1;
-        let z_mask = (i & 0b100) == 1;
+        let x_mask = (i & 0b1) != 0;
+        let y_mask = (i & 0b10) != 0;
+        let z_mask = (i & 0b100) != 0;
 
         Aabb {
             min: UVec3::new(
