@@ -82,8 +82,7 @@ where
             }
 
             NodeType::Leaf(e) => {
-                let aabb = self.nodes[node].aabb;
-                let children = self.nodes.branch(node, aabb);
+                let children = self.nodes.branch(node);
 
                 let n = &mut self.nodes[node];
                 n.ntype = NodeType::Branch(Branch::new(children));
@@ -228,41 +227,9 @@ impl<U: Unsigned> Pool<Node<U>> {
         self.garbage.push(node.into());
     }
 
-    fn branch(&mut self, parent: NodeId, aabb: Aabb<U>) -> [NodeId; 8] {
-        let min = aabb.min;
-        let max = aabb.max;
-        let mid = aabb.center();
-
-        from_fn(|i| self.geni_child(i, min, mid, max, parent))
-    }
-
-    fn geni_child(
-        &mut self,
-        i: usize,
-        min: UVec3<U>,
-        mid: UVec3<U>,
-        max: UVec3<U>,
-        parent: NodeId,
-    ) -> NodeId {
-        let x_mask = (i & 0b1) == 1;
-        let y_mask = (i & 0b10) == 1;
-        let z_mask = (i & 0b100) == 1;
-
-        let min = UVec3::new(
-            if x_mask { mid.x } else { min.x },
-            if y_mask { mid.y } else { min.y },
-            if z_mask { mid.z } else { min.z },
-        );
-
-        let max = UVec3::new(
-            if x_mask { max.x } else { mid.x },
-            if y_mask { max.y } else { mid.y },
-            if z_mask { max.z } else { mid.z },
-        );
-
-        let aabb = Aabb { min, max };
-        let node = Node::from_aabb(aabb, Some(parent));
-        self.insert(node)
+    fn branch(&mut self, parent: NodeId) -> [NodeId; 8] {
+        let aabbs = self[parent].aabb.split();
+        from_fn(|i| self.insert(Node::from_aabb(aabbs[i], Some(parent))))
     }
 
     fn collapse(&mut self, parent: Option<NodeId>) -> Result<(), TreeError> {
