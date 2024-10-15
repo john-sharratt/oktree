@@ -25,6 +25,7 @@ trait Nodable {
 
     fn get_node(&self) -> NodeId;
 }
+
 #[derive(Default)]
 struct Octree<U, T>
 where
@@ -75,7 +76,17 @@ where
                 let n = &mut self.nodes[node];
                 n.ntype = NodeType::Leaf(element);
                 if let Some(parent) = n.parent {
-                    self.nodes[parent].increment()?;
+                    match self.nodes[parent].ntype {
+                        NodeType::Branch(ref mut branch) => {
+                            branch.increment();
+                        }
+                        _ => {
+                            return Err(TreeError::NotBranch(format!(
+                                "Attempt to increment a node with type {}",
+                                self.nodes[parent].ntype
+                            )))
+                        }
+                    }
                 }
                 self.elements[element].set_node(node);
                 Ok(())
@@ -108,7 +119,9 @@ where
             NodeType::Leaf(_) => {
                 self.elements.remove(element);
                 n.ntype = NodeType::Empty;
-                self.nodes.collapse(parent)?;
+                if let Some((element, node)) = self.nodes.collapse(parent)? {
+                    self.elements[element].set_node(node);
+                }
                 Ok(())
             }
             _ => Err(TreeError::NotLeaf(format!(
@@ -151,7 +164,7 @@ impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
     fn index(&self, index: NodeId) -> &Self::Output {
         debug_assert!(
             !self.garbage.contains(&index.into()),
-            "Indexing garbaged node"
+            "Indexing garbaged node: {index}"
         );
         &self.vec[index.0 as usize]
     }
@@ -161,7 +174,7 @@ impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
     fn index_mut(&mut self, index: NodeId) -> &mut Self::Output {
         debug_assert!(
             !self.garbage.contains(&index.into()),
-            "Mut Indexing garbaged node"
+            "Mut Indexing garbaged node: {index}"
         );
         &mut self.vec[index.0 as usize]
     }
@@ -173,7 +186,7 @@ impl<T: Translatable> Index<ElementId> for Pool<T> {
     fn index(&self, index: ElementId) -> &Self::Output {
         debug_assert!(
             !self.garbage.contains(&index.into()),
-            "Indexing garbaged element"
+            "Indexing garbaged element: {index}"
         );
         &self.vec[index.0 as usize]
     }
@@ -183,7 +196,7 @@ impl<T: Translatable> IndexMut<ElementId> for Pool<T> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
             !self.garbage.contains(&index.into()),
-            "Mut Indexing garbaged element"
+            "Mut Indexing garbaged element: {index}"
         );
         &mut self.vec[index.0 as usize]
     }
@@ -232,19 +245,56 @@ impl<U: Unsigned> Pool<Node<U>> {
         from_fn(|i| self.insert(Node::from_aabb(aabbs[i], Some(parent))))
     }
 
-    fn collapse(&mut self, parent: Option<NodeId>) -> Result<(), TreeError> {
+    fn collapse(
+        &mut self,
+        parent: Option<NodeId>,
+    ) -> Result<Option<(ElementId, NodeId)>, TreeError> {
         if let Some(parent) = parent {
-            let p = &mut self[parent];
-            p.decrement()?;
-            let parent = p.parent;
-            if p.fullness()? == 0 {
-                let children = p.collapse()?;
-                children.map(|child| self.remove(child));
-                self.collapse(parent)?;
-            }
-        }
+            let mut p = self[parent];
 
-        Ok(())
+            match p.ntype {
+                NodeType::Branch(ref mut branch) => {
+                    branch.decrement();
+                    match branch.filled {
+                        0 => {
+                            let children = branch.children;
+                            p.ntype = NodeType::Empty;
+                            self[parent] = p;
+                            children.map(|child| self.remove(child));
+                            return self.collapse(p.parent);
+                        }
+
+                        1 => {
+                            for child in branch.children {
+                                let c = self[child];
+                                match c.ntype {
+                                    NodeType::Leaf(element) => {
+                                        let children = branch.children;
+                                        p.ntype = NodeType::Leaf(element);
+                                        self[parent] = p;
+                                        children.map(|child| self.remove(child));
+                                        return Ok(Some((element, parent)));
+                                    }
+                                    NodeType::Branch(_) => break,
+                                    NodeType::Empty => (),
+                                }
+                            }
+                        }
+
+                        _ => (),
+                    }
+                }
+                _ => {
+                    return Err(TreeError::NotBranch(format!(
+                        "Attempt to collapse a node of type {}",
+                        p.ntype
+                    )))
+                }
+            }
+
+            self[parent] = p;
+        }
+        Ok(None)
     }
 }
 
@@ -287,32 +337,6 @@ impl<U: Unsigned> Node<U> {
         }
     }
 
-    fn increment(&mut self) -> Result<(), TreeError> {
-        match self.ntype {
-            NodeType::Branch(ref mut branch) => {
-                branch.increment();
-                Ok(())
-            }
-            _ => Err(TreeError::NotBranch(format!(
-                "Attemt to increment child count for {} node",
-                self.ntype
-            ))),
-        }
-    }
-
-    fn decrement(&mut self) -> Result<(), TreeError> {
-        match self.ntype {
-            NodeType::Branch(ref mut branch) => {
-                branch.decrement();
-                Ok(())
-            }
-            _ => Err(TreeError::NotBranch(format!(
-                "Attemt to decrement negative child count for {} node",
-                self.ntype
-            ))),
-        }
-    }
-
     fn fullness(&self) -> Result<u8, TreeError> {
         match self.ntype {
             NodeType::Branch(Branch { filled, .. }) => Ok(filled),
@@ -320,21 +344,6 @@ impl<U: Unsigned> Node<U> {
                 "Attemt to get child count for {} node",
                 self.ntype
             ))),
-        }
-    }
-
-    fn collapse(&mut self) -> Result<[NodeId; 8], TreeError> {
-        match self.ntype {
-            NodeType::Branch(Branch { children, filled }) => match filled {
-                0 => {
-                    self.ntype = NodeType::Empty;
-                    Ok(children)
-                }
-                _ => Err(TreeError::CollapseNonEmpty(format!(
-                    "Collapsing a non empty branch"
-                ))),
-            },
-            _ => Err(TreeError::NotBranch(format!("Collapse a {}", self.ntype))),
         }
     }
 }
@@ -562,13 +571,14 @@ mod tests {
         assert_eq!(tree.insert(c1), Ok(()));
         let c2 = DummyCell::new(UVec3::new(2, 2, 2));
         assert_eq!(tree.insert(c2), Ok(()));
+
         assert_eq!(tree.nodes.len(), 25);
         assert_eq!(tree.elements.len(), 2);
 
         tree.remove(0.into()).unwrap();
 
         assert_eq!(tree.elements.len(), 1);
-        assert_eq!(tree.nodes.len(), 25);
+        assert_eq!(tree.nodes.len(), 17);
 
         tree.remove(1.into()).unwrap();
 
@@ -604,7 +614,7 @@ mod tests {
         assert_eq!(tree.remove(0.into()), Ok(()));
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
-        assert_eq!(tree.nodes[1.into()].fullness(), Ok(1));
+        assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(1.into()));
         assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
 
         assert_eq!(tree.remove(1.into()), Ok(()));
@@ -618,7 +628,7 @@ mod tests {
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);
-        assert_eq!(tree.nodes[20.into()].fullness(), Ok(1));
+        assert_eq!(tree.nodes[20.into()].ntype, NodeType::Leaf(4.into()));
 
         assert_eq!(tree.remove(4.into()), Ok(()));
 
