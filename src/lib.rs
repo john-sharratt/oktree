@@ -2,6 +2,8 @@
 #![feature(strict_overflow_ops)]
 #![feature(trait_alias)]
 
+#[cfg(feature = "bevy")]
+pub mod bevy_integration;
 pub mod bounding;
 
 use std::{
