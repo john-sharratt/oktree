@@ -22,6 +22,14 @@ impl<U: Unsigned> UVec3<U> {
         UVec3 { x, y, z }
     }
 
+    pub fn splat(size: U) -> Self {
+        UVec3 {
+            x: size,
+            y: size,
+            z: size,
+        }
+    }
+
     pub fn zero() -> Self {
         UVec3 {
             x: cast(0).unwrap(),
@@ -131,5 +139,9 @@ impl<U: Unsigned> Aabb<U> {
         let gtmax = self.max.gt(position);
 
         lemin.all() && gtmax.all()
+    }
+
+    pub fn unit(&self) -> bool {
+        self.max.x - self.min.x == cast(1).unwrap()
     }
 }

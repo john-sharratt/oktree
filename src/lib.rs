@@ -16,25 +16,25 @@ use std::{
 use bounding::{Aabb, UVec3, Unsigned};
 use num::cast;
 
-trait Translatable {
+pub trait Translatable {
     type U: Unsigned;
 
     fn translation(&self) -> UVec3<Self::U>;
 }
 
-trait Nodable {
+pub trait Nodable {
     fn set_node(&mut self, node: NodeId);
 
     fn get_node(&self) -> NodeId;
 }
 
 #[derive(Default)]
-struct Octree<U, T>
+pub struct Octree<U, T>
 where
     U: Unsigned,
     T: Translatable<U = U> + Nodable,
 {
-    elements: Pool<T>,
+    pub elements: Pool<T>,
     nodes: Pool<Node<U>>,
     root: NodeId,
 }
@@ -56,8 +56,13 @@ where
         let position = elem.translation();
         let element = self.elements.insert(elem);
         if self.nodes[self.root].aabb.contains(position) {
-            self.rinsert(element, self.root, position)?;
-            Ok(())
+            match self.rinsert(element, self.root, position) {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    self.elements.remove(element);
+                    Err(err)
+                }
+            }
         } else {
             Err(TreeError::OutOfTreeBounds(format!(
                 "{position} is outside of aabb: min: {} max: {}",
@@ -95,6 +100,11 @@ where
             }
 
             NodeType::Leaf(e) => {
+                if self.nodes[node].aabb.unit() {
+                    return Err(TreeError::SplitUnit(format!(
+                        "Attempt to insert element into a leaf with size 1"
+                    )));
+                }
                 let children = self.nodes.branch(node);
 
                 let n = &mut self.nodes[node];
@@ -113,7 +123,7 @@ where
         }
     }
 
-    fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
+    pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
         let node = self.elements[element].get_node();
         let n = &mut self.nodes[node];
         let parent = n.parent;
@@ -134,7 +144,7 @@ where
     }
 }
 
-struct Pool<T> {
+pub struct Pool<T> {
     vec: Vec<T>,
     garbage: Vec<usize>,
 }
@@ -215,7 +225,7 @@ impl<T> Pool<T> {
         }
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.vec.len() - self.garbage_len()
     }
 
@@ -363,7 +373,7 @@ impl fmt::Display for NodeType {
         match self {
             NodeType::Empty => write!(f, "NodeType: Empty"),
             NodeType::Leaf(e) => write!(f, "NodeType: Leaf({e})"),
-            NodeType::Branch(_) => write!(f, "NodeType: Branch()"),
+            NodeType::Branch(branch) => write!(f, "NodeType: Branch({:?})", branch),
         }
     }
 }
@@ -411,7 +421,7 @@ impl Branch {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
-struct NodeId(u32);
+pub struct NodeId(u32);
 
 impl From<NodeId> for usize {
     fn from(value: NodeId) -> Self {
@@ -432,7 +442,7 @@ impl fmt::Display for NodeId {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
-struct ElementId(u32);
+pub struct ElementId(u32);
 
 impl From<ElementId> for usize {
     fn from(value: ElementId) -> Self {
@@ -458,6 +468,7 @@ pub enum TreeError {
     NotBranch(String),
     NotLeaf(String),
     CollapseNonEmpty(String),
+    SplitUnit(String),
 }
 
 impl Error for TreeError {}
@@ -469,6 +480,7 @@ impl fmt::Display for TreeError {
             TreeError::NotBranch(info) => write!(f, "Node is not a Branch. {info}"),
             TreeError::NotLeaf(info) => write!(f, "Node is not a Leaf. {info}"),
             TreeError::CollapseNonEmpty(info) => write!(f, "Collapsing non empty branch. {info}"),
+            TreeError::SplitUnit(info) => write!(f, "Splitting AABB with size of 1. {info}"),
         }
     }
 }
@@ -477,6 +489,9 @@ impl fmt::Display for TreeError {
 mod tests {
 
     use super::*;
+    use rand::Rng;
+
+    const RANGE: usize = 4096;
 
     struct DummyCell<U: Unsigned> {
         position: UVec3<U>,
@@ -575,6 +590,16 @@ mod tests {
         assert_eq!(tree.insert(c2), Ok(()));
 
         assert_eq!(tree.nodes.len(), 25);
+
+        let c2r = DummyCell::new(UVec3::new(1, 1, 1));
+        assert_eq!(
+            tree.insert(c2r),
+            Err(TreeError::SplitUnit(
+                "Attempt to insert element into a leaf with size 1".into()
+            ))
+        );
+
+        assert_eq!(tree.nodes.len(), 33);
         assert_eq!(tree.elements.len(), 2);
 
         tree.remove(0.into()).unwrap();
@@ -636,6 +661,36 @@ mod tests {
 
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
         assert_eq!(tree.nodes.len(), 1);
+        assert_eq!(tree.elements.len(), 0);
+    }
+
+    fn random_points() -> [DummyCell<usize>; RANGE] {
+        let mut rnd = rand::thread_rng();
+        from_fn(|_| {
+            let x = rnd.gen_range(0..RANGE);
+            let y = rnd.gen_range(0..RANGE);
+            let z = rnd.gen_range(0..RANGE);
+            let position = UVec3::new(x, y, z);
+            DummyCell::new(position)
+        })
+    }
+
+    #[test]
+    fn test_4096() {
+        let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
+
+        for p in random_points() {
+            let _ = tree.insert(p);
+        }
+
+        assert!(tree.elements.len() > (RANGE as f32 * 0.98) as usize);
+
+        for element in 0..tree.elements.len() {
+            if let Err(err) = tree.remove(element.into()) {
+                println!("{err} || {}", tree.elements[element.into()].translation());
+            }
+        }
+
         assert_eq!(tree.elements.len(), 0);
     }
 }
