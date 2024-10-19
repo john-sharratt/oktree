@@ -54,8 +54,8 @@ where
 
     pub fn insert(&mut self, elem: T) -> Result<(), TreeError> {
         let position = elem.translation();
-        let element = self.elements.insert(elem);
         if self.nodes[self.root].aabb.contains(position) {
+            let element = self.elements.insert(elem);
             match self.rinsert(element, self.root, position) {
                 Ok(()) => Ok(()),
                 Err(err) => {
@@ -178,7 +178,7 @@ impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
             !self.garbage.contains(&index.into()),
             "Indexing garbaged node: {index}"
         );
-        &self.vec[index.0 as usize]
+        self.get_unchecked(index)
     }
 }
 
@@ -188,7 +188,7 @@ impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
             !self.garbage.contains(&index.into()),
             "Mut Indexing garbaged node: {index}"
         );
-        &mut self.vec[index.0 as usize]
+        self.get_mut_unchecked(index)
     }
 }
 
@@ -200,7 +200,7 @@ impl<T: Translatable> Index<ElementId> for Pool<T> {
             !self.garbage.contains(&index.into()),
             "Indexing garbaged element: {index}"
         );
-        &self.vec[index.0 as usize]
+        self.get_unchecked(index)
     }
 }
 
@@ -210,7 +210,7 @@ impl<T: Translatable> IndexMut<ElementId> for Pool<T> {
             !self.garbage.contains(&index.into()),
             "Mut Indexing garbaged element: {index}"
         );
-        &mut self.vec[index.0 as usize]
+        self.get_mut_unchecked(index)
     }
 }
 
@@ -308,6 +308,30 @@ impl<U: Unsigned> Pool<Node<U>> {
         }
         Ok(None)
     }
+
+    pub fn get(&self, node: NodeId) -> Option<&Node<U>> {
+        if !self.garbage.contains(&(node.0 as usize)) {
+            self.vec.get(node.0 as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mut(&mut self, node: NodeId) -> Option<&mut Node<U>> {
+        if !self.garbage.contains(&(node.0 as usize)) {
+            self.vec.get_mut(node.0 as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_unchecked(&self, node: NodeId) -> &Node<U> {
+        &self.vec[node.0 as usize]
+    }
+
+    pub fn get_mut_unchecked(&mut self, node: NodeId) -> &mut Node<U> {
+        &mut self.vec[node.0 as usize]
+    }
 }
 
 impl<T: Translatable> Pool<T> {
@@ -317,6 +341,30 @@ impl<T: Translatable> Pool<T> {
 
     fn remove(&mut self, element: ElementId) {
         self.garbage.push(element.into());
+    }
+
+    pub fn get(&self, node: ElementId) -> Option<&T> {
+        if !self.garbage.contains(&(node.0 as usize)) {
+            self.vec.get(node.0 as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mut(&mut self, node: ElementId) -> Option<&mut T> {
+        if !self.garbage.contains(&(node.0 as usize)) {
+            self.vec.get_mut(node.0 as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_unchecked(&self, node: ElementId) -> &T {
+        &self.vec[node.0 as usize]
+    }
+
+    pub fn get_mut_unchecked(&mut self, node: ElementId) -> &mut T {
+        &mut self.vec[node.0 as usize]
     }
 }
 
@@ -667,9 +715,9 @@ mod tests {
     fn random_points() -> [DummyCell<usize>; RANGE] {
         let mut rnd = rand::thread_rng();
         from_fn(|_| {
-            let x = rnd.gen_range(0..RANGE);
-            let y = rnd.gen_range(0..RANGE);
-            let z = rnd.gen_range(0..RANGE);
+            let x = rnd.gen_range(0..=RANGE);
+            let y = rnd.gen_range(0..=RANGE);
+            let z = rnd.gen_range(0..=RANGE);
             let position = UVec3::new(x, y, z);
             DummyCell::new(position)
         })

@@ -5,10 +5,10 @@ use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 pub trait Unsigned = Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display;
 
 #[derive(Default, PartialEq, Clone, Copy)]
-pub struct UVec3<T: Unsigned> {
-    pub x: T,
-    pub y: T,
-    pub z: T,
+pub struct UVec3<U: Unsigned> {
+    pub x: U,
+    pub y: U,
+    pub z: U,
 }
 
 impl<U: Unsigned> Display for UVec3<U> {
@@ -143,5 +143,22 @@ impl<U: Unsigned> Aabb<U> {
 
     pub fn unit(&self) -> bool {
         self.max.x - self.min.x == cast(1).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Aabb, UVec3};
+
+    #[test]
+    fn test_aabb_contains() {
+        let aabb = Aabb::new(UVec3::new(8, 8, 8), 8u16);
+        assert!(aabb.contains(UVec3::zero()));
+
+        assert!(aabb.contains(UVec3::new(8, 8, 8)));
+
+        assert!(!aabb.contains(UVec3::new(16, 16, 16)));
+
+        assert!(!aabb.contains(UVec3::new(0, 16, 8)));
     }
 }

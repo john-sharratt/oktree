@@ -44,9 +44,9 @@ impl<U: Unsigned> DummyCell<U> {
 fn random_points() -> [DummyCell<usize>; RANGE] {
     let mut rnd = rand::thread_rng();
     from_fn(|_| {
-        let x = rnd.gen_range(0..RANGE);
-        let y = rnd.gen_range(0..RANGE);
-        let z = rnd.gen_range(0..RANGE);
+        let x = rnd.gen_range(0..=RANGE);
+        let y = rnd.gen_range(0..=RANGE);
+        let z = rnd.gen_range(0..=RANGE);
         let position = UVec3::new(x, y, z);
         DummyCell::new(position)
     })
