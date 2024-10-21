@@ -1,4 +1,4 @@
-use std::array::from_fn;
+use std::{array::from_fn, time::Duration};
 
 use bevy::math::{bounding::RayCast3d, Dir3A, Vec3A};
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -105,13 +105,15 @@ fn octree_intersection(points: [DummyCell<usize>; RANGE]) {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("main");
+    group.measurement_time(Duration::from_secs(10));
     let points = random_points();
 
-    c.bench_function("octree insert", |b| b.iter(|| octree_insert(points)));
+    group.bench_function("octree insert", |b| b.iter(|| octree_insert(points)));
 
-    c.bench_function("octree remove", |b| b.iter(|| octree_remove(points)));
+    group.bench_function("octree remove", |b| b.iter(|| octree_remove(points)));
 
-    c.bench_function("octree intersection", |b| {
+    group.bench_function("octree intersection", |b| {
         b.iter(|| octree_intersection(points))
     });
 }
