@@ -1,6 +1,6 @@
 use bevy::math::{
     bounding::{Aabb3d, IntersectsVolume, RayCast3d},
-    Vec3A,
+    Vec3, Vec3A,
 };
 use num::cast;
 
@@ -85,6 +85,16 @@ impl<U: Unsigned> From<Aabb<U>> for Aabb3d {
 impl<U: Unsigned> From<UVec3<U>> for Vec3A {
     fn from(value: UVec3<U>) -> Self {
         Vec3A::new(
+            cast(value.x).unwrap(),
+            cast(value.y).unwrap(),
+            cast(value.z).unwrap(),
+        )
+    }
+}
+
+impl<U: Unsigned> From<UVec3<U>> for Vec3 {
+    fn from(value: UVec3<U>) -> Self {
+        Vec3::new(
             cast(value.x).unwrap(),
             cast(value.y).unwrap(),
             cast(value.z).unwrap(),

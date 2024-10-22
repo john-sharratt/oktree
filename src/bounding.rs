@@ -144,6 +144,10 @@ impl<U: Unsigned> Aabb<U> {
     pub fn unit(&self) -> bool {
         self.max.x - self.min.x == cast(1).unwrap()
     }
+
+    pub fn size(&self) -> U {
+        self.max.x - self.min.x
+    }
 }
 
 #[cfg(test)]

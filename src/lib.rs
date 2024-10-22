@@ -35,7 +35,7 @@ where
     T: Translatable<U = U> + Nodable,
 {
     pub elements: Pool<T>,
-    nodes: Pool<Node<U>>,
+    pub nodes: Pool<Node<U>>,
     root: NodeId,
 }
 
@@ -214,6 +214,38 @@ impl<T: Translatable> IndexMut<ElementId> for Pool<T> {
     }
 }
 
+pub struct PoolIterator<'pool, T> {
+    pool: &'pool Pool<T>,
+    current: usize,
+}
+
+impl<'pool, T> PoolIterator<'pool, T> {
+    fn new(pool: &'pool Pool<T>) -> Self {
+        PoolIterator {
+            pool,
+            current: Default::default(),
+        }
+    }
+}
+
+impl<'pool, T> Iterator for PoolIterator<'pool, T> {
+    type Item = &'pool T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current < self.pool.vec.len() {
+            if self.pool.garbage.contains(&self.current) {
+                self.current += 1;
+                continue;
+            } else {
+                let current = self.current;
+                self.current += 1;
+                return Some(&self.pool.vec[current]);
+            }
+        }
+        None
+    }
+}
+
 impl<T> Pool<T> {
     fn _insert(&mut self, t: T) -> usize {
         if let Some(idx) = self.garbage.pop() {
@@ -231,6 +263,10 @@ impl<T> Pool<T> {
 
     fn garbage_len(&self) -> usize {
         self.garbage.len()
+    }
+
+    pub fn iter(&self) -> PoolIterator<T> {
+        PoolIterator::new(self)
     }
 }
 
@@ -369,9 +405,9 @@ impl<T: Translatable> Pool<T> {
 }
 
 #[derive(Clone, Copy)]
-struct Node<U: Unsigned> {
-    aabb: Aabb<U>,
-    ntype: NodeType,
+pub struct Node<U: Unsigned> {
+    pub aabb: Aabb<U>,
+    pub ntype: NodeType,
     parent: Option<NodeId>,
 }
 
@@ -409,7 +445,7 @@ impl<U: Unsigned> Node<U> {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
-enum NodeType {
+pub enum NodeType {
     #[default]
     Empty,
     Leaf(ElementId),
@@ -427,7 +463,7 @@ impl fmt::Display for NodeType {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
-struct Branch {
+pub struct Branch {
     children: [NodeId; 8],
     filled: u8,
 }
