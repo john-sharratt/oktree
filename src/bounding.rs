@@ -4,7 +4,7 @@ use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 
 pub trait Unsigned = Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display;
 
-#[derive(Default, PartialEq, Clone, Copy)]
+#[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub struct UVec3<U: Unsigned> {
     pub x: U,
     pub y: U,

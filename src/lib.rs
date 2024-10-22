@@ -577,6 +577,7 @@ mod tests {
 
     const RANGE: usize = 4096;
 
+    #[derive(Debug)]
     struct DummyCell<U: Unsigned> {
         position: UVec3<U>,
         node: NodeId,
@@ -776,5 +777,48 @@ mod tests {
         }
 
         assert_eq!(tree.elements.len(), 0);
+    }
+
+    #[test]
+    fn test_iterator() {
+        let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(16), 16));
+
+        for i in 0..16u32 {
+            assert_eq!(tree.insert(DummyCell::new(UVec3::splat(i))), Ok(()));
+            assert_eq!(tree.elements.len(), (i + 1) as usize);
+            assert_eq!(tree.elements.vec.len(), (i + 1) as usize);
+            assert_eq!(tree.elements.garbage_len(), 0);
+        }
+
+        for i in 0..16u32 {
+            assert_eq!(
+                tree.elements.iter().next().unwrap().position,
+                UVec3::splat(i)
+            );
+
+            assert_eq!(tree.remove(ElementId(i)), Ok(()));
+            assert_eq!(tree.elements.len(), (15 - i) as usize);
+            assert_eq!(tree.elements.vec.len(), 16 as usize);
+            assert_eq!(tree.elements.garbage_len(), (i + 1) as usize);
+        }
+
+        for i in 0..16u32 {
+            assert_eq!(tree.insert(DummyCell::new(UVec3::splat(i))), Ok(()));
+            assert_eq!(tree.elements.len(), (i + 1) as usize);
+            assert_eq!(tree.elements.vec.len(), 16);
+            assert_eq!(tree.elements.garbage_len(), (15 - i) as usize);
+        }
+
+        for i in 0..16u32 {
+            assert_eq!(
+                tree.elements.iter().next().unwrap().position,
+                UVec3::splat(15 - i)
+            );
+
+            assert_eq!(tree.remove(ElementId(i)), Ok(()));
+            assert_eq!(tree.elements.len(), (15 - i) as usize);
+            assert_eq!(tree.elements.vec.len(), 16);
+            assert_eq!(tree.elements.garbage_len(), (i + 1) as usize);
+        }
     }
 }
