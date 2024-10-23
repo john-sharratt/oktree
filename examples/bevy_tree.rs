@@ -1,11 +1,14 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{color::palettes::css::RED, prelude::*};
 use oktree::{
     bounding::{Aabb, UVec3 as TUVec3, Unsigned},
     Nodable, NodeId, NodeType, Octree, Translatable,
 };
 use rand::Rng;
+
+const SIZE: u32 = 256;
+const COUNTER: usize = 1024;
 
 fn main() {
     App::new()
@@ -17,12 +20,21 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.insert_resource(Tree(Octree::from_aabb(Aabb::new(TUVec3::splat(32), 32))));
+    commands.insert_resource(Tree(Octree::from_aabb(Aabb::new(
+        TUVec3::splat(SIZE / 2),
+        SIZE / 2,
+    ))));
+
     commands.insert_resource(SpawnTimer {
-        timer: Timer::new(Duration::from_secs(1), TimerMode::Repeating),
+        timer: Timer::new(Duration::from_millis(10), TimerMode::Repeating),
     });
 
-    let position = Transform::from_xyz(-100.0, 0.0, 32.0).looking_at(Vec3::splat(32.0), Vec3::Z);
+    commands.insert_resource(Mode::Insert);
+
+    commands.insert_resource(Counter(0));
+
+    let position = Transform::from_xyz(-(SIZE as f32), 0.0, (SIZE / 2) as f32)
+        .looking_at(Vec3::splat((SIZE / 2) as f32), Vec3::Z);
     commands.spawn((
         Camera3dBundle {
             transform: position,
@@ -49,27 +61,43 @@ fn draw_nodes(mut gizmos: Gizmos, tree: Res<Tree>) {
 
 fn draw_elements(mut gizmos: Gizmos, tree: Res<Tree>) {
     for element in tree.0.elements.iter() {
-        gizmos.sphere(
-            element.position.into(),
-            Quat::IDENTITY,
-            1.0,
-            Color::srgb(0.1, 0.45, 0.9),
-        );
+        gizmos.sphere(element.position.into(), Quat::IDENTITY, 1.0, RED);
     }
 }
 
-fn spawn_points(mut tree: ResMut<Tree>, time: Res<Time>, mut timer: ResMut<SpawnTimer>) {
+fn spawn_points(
+    mut tree: ResMut<Tree>,
+    time: Res<Time>,
+    mut timer: ResMut<SpawnTimer>,
+    mut mode: ResMut<Mode>,
+    mut counter: ResMut<Counter>,
+) {
     timer.timer.tick(time.delta());
 
     if timer.timer.finished() {
-        let mut rnd = rand::thread_rng();
-        let position = TUVec3 {
-            x: rnd.gen_range(0..64),
-            y: rnd.gen_range(0..64),
-            z: rnd.gen_range(0..64),
-        };
-        let c = DummyCell::new(position);
-        let _ = tree.0.insert(c);
+        match *mode {
+            Mode::Insert => {
+                let mut rnd = rand::thread_rng();
+                let position = TUVec3 {
+                    x: rnd.gen_range(0..SIZE),
+                    y: rnd.gen_range(0..SIZE),
+                    z: rnd.gen_range(0..SIZE),
+                };
+                let c = DummyCell::new(position);
+                let _ = tree.0.insert(c);
+                counter.0 += 1;
+                if counter.0 >= COUNTER {
+                    *mode = Mode::Remove;
+                }
+            }
+            Mode::Remove => {
+                counter.0 -= 1;
+                let _ = tree.0.remove(counter.0.into());
+                if counter.0 == 0 {
+                    *mode = Mode::Insert;
+                }
+            }
+        }
     }
 }
 
@@ -80,6 +108,15 @@ struct Tree(Octree<u32, DummyCell<u32>>);
 struct SpawnTimer {
     timer: Timer,
 }
+
+#[derive(Resource)]
+enum Mode {
+    Insert,
+    Remove,
+}
+
+#[derive(Resource)]
+struct Counter(usize);
 
 #[derive(Component)]
 struct Camera;
