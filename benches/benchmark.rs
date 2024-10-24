@@ -71,19 +71,19 @@ fn random_rays() -> [RayCast3d; RANGE] {
     })
 }
 
-fn octree_insert(points: [DummyCell<usize>; RANGE]) {
+fn octree_insert(points: &[DummyCell<usize>; RANGE]) {
     let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
 
     for p in points {
-        let _ = tree.insert(p);
+        let _ = tree.insert(*p);
     }
 }
 
-fn octree_remove(points: [DummyCell<usize>; RANGE]) {
+fn octree_remove(points: &[DummyCell<usize>; RANGE]) {
     let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
 
     for p in points {
-        let _ = tree.insert(p);
+        let _ = tree.insert(*p);
     }
 
     for element in 0..tree.elements.len() {
@@ -91,16 +91,15 @@ fn octree_remove(points: [DummyCell<usize>; RANGE]) {
     }
 }
 
-fn octree_intersection(points: [DummyCell<usize>; RANGE]) {
+fn octree_intersection(points: &[DummyCell<usize>; RANGE], rays: &[RayCast3d; RANGE]) {
     let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
-    let rays = random_rays();
 
     for p in points {
-        let _ = tree.insert(p);
+        let _ = tree.insert(*p);
     }
 
     for ray in rays {
-        let _ = tree.ray_cast(&ray);
+        let _ = tree.ray_cast(ray);
     }
 }
 
@@ -108,13 +107,14 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("main");
     group.measurement_time(Duration::from_secs(10));
     let points = random_points();
+    let rays = random_rays();
 
-    group.bench_function("octree insert", |b| b.iter(|| octree_insert(points)));
+    group.bench_function("octree insert", |b| b.iter(|| octree_insert(&points)));
 
-    group.bench_function("octree remove", |b| b.iter(|| octree_remove(points)));
+    group.bench_function("octree remove", |b| b.iter(|| octree_remove(&points)));
 
     group.bench_function("octree intersection", |b| {
-        b.iter(|| octree_intersection(points))
+        b.iter(|| octree_intersection(&points, &rays))
     });
 }
 

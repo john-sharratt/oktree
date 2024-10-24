@@ -6,6 +6,7 @@
 pub mod bevy_integration;
 pub mod bounding;
 
+use heapless::Vec as HVec;
 use std::{
     array::from_fn,
     error::Error,
@@ -56,13 +57,26 @@ where
         let position = elem.translation();
         if self.nodes[self.root].aabb.contains(position) {
             let element = self.elements.insert(elem);
-            match self.rinsert(element, self.root, position) {
-                Ok(()) => Ok(()),
-                Err(err) => {
-                    self.elements.remove(element);
-                    Err(err)
+
+            let mut insertions: HVec<Insertion<U>, 2> = HVec::new();
+            unsafe {
+                insertions.push_unchecked(Insertion {
+                    element,
+                    node: self.root,
+                    position,
+                });
+            }
+
+            while let Some(insertion) = insertions.pop() {
+                match self.rinsert(insertion, &mut insertions) {
+                    Ok(()) => (),
+                    Err(err) => {
+                        self.elements.remove(element);
+                        return Err(err);
+                    }
                 }
             }
+            Ok(())
         } else {
             Err(TreeError::OutOfTreeBounds(format!(
                 "{position} is outside of aabb: min: {} max: {}",
@@ -73,10 +87,15 @@ where
 
     fn rinsert(
         &mut self,
-        element: ElementId,
-        node: NodeId,
-        position: UVec3<U>,
+        insertion: Insertion<U>,
+        insertions: &mut HVec<Insertion<U>, 2>,
     ) -> Result<(), TreeError> {
+        let Insertion {
+            element,
+            node,
+            position,
+        } = insertion;
+
         let ntype = self.nodes[node].ntype;
         match ntype {
             NodeType::Empty => {
@@ -96,7 +115,6 @@ where
                     }
                 }
                 self.elements[element].set_node(node);
-                Ok(())
             }
 
             NodeType::Leaf(e) => {
@@ -109,18 +127,29 @@ where
 
                 let n = &mut self.nodes[node];
                 n.ntype = NodeType::Branch(Branch::new(children));
-                self.rinsert(e, node, self.elements[e].translation())?;
-                self.rinsert(element, node, position)?;
-                Ok(())
+                unsafe {
+                    insertions.push_unchecked(insertion);
+                    insertions.push_unchecked(Insertion {
+                        element: e,
+                        node,
+                        position: self.elements[e].translation(),
+                    })
+                }
             }
 
             NodeType::Branch(branch) => {
                 let center = self.nodes[node].aabb.center();
                 let child: NodeId = branch.find_child(position, center)?;
-                self.rinsert(element, child, position)?;
-                Ok(())
+                unsafe {
+                    insertions.push_unchecked(Insertion {
+                        element,
+                        node: child,
+                        position,
+                    })
+                }
             }
         }
+        Ok(())
     }
 
     pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
@@ -142,6 +171,13 @@ where
             ))),
         }
     }
+}
+
+#[derive(Debug)]
+struct Insertion<U: Unsigned> {
+    element: ElementId,
+    node: NodeId,
+    position: UVec3<U>,
 }
 
 pub struct Pool<T> {
@@ -575,7 +611,7 @@ mod tests {
     use super::*;
     use rand::Rng;
 
-    const RANGE: usize = 4096;
+    const RANGE: usize = 65536;
 
     #[derive(Debug)]
     struct DummyCell<U: Unsigned> {
@@ -671,8 +707,11 @@ mod tests {
 
         let c1 = DummyCell::new(UVec3::new(1, 1, 1));
         assert_eq!(tree.insert(c1), Ok(()));
+        assert_eq!(tree.elements[0.into()].get_node(), 0.into());
         let c2 = DummyCell::new(UVec3::new(2, 2, 2));
         assert_eq!(tree.insert(c2), Ok(()));
+        assert_eq!(tree.elements[0.into()].get_node(), 17.into());
+        assert_eq!(tree.nodes[17.into()].ntype, NodeType::Leaf(0.into()));
 
         assert_eq!(tree.nodes.len(), 25);
 
@@ -749,22 +788,22 @@ mod tests {
         assert_eq!(tree.elements.len(), 0);
     }
 
-    fn random_points() -> [DummyCell<usize>; RANGE] {
+    fn random_point() -> DummyCell<usize> {
         let mut rnd = rand::thread_rng();
-        from_fn(|_| {
-            let x = rnd.gen_range(0..=RANGE);
-            let y = rnd.gen_range(0..=RANGE);
-            let z = rnd.gen_range(0..=RANGE);
-            let position = UVec3::new(x, y, z);
-            DummyCell::new(position)
-        })
+
+        let x = rnd.gen_range(0..=RANGE);
+        let y = rnd.gen_range(0..=RANGE);
+        let z = rnd.gen_range(0..=RANGE);
+        let position = UVec3::new(x, y, z);
+        DummyCell::new(position)
     }
 
     #[test]
-    fn test_4096() {
+    fn test_65536() {
         let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
 
-        for p in random_points() {
+        for _ in 0..RANGE {
+            let p = random_point();
             let _ = tree.insert(p);
         }
 
@@ -777,6 +816,7 @@ mod tests {
         }
 
         assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.nodes.len(), 1);
     }
 
     #[test]

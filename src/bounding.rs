@@ -1,8 +1,13 @@
-use std::{array::from_fn, fmt::Display, ops::Shr};
+use std::{
+    array::from_fn,
+    fmt::{Debug, Display},
+    ops::Shr,
+};
 
 use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 
-pub trait Unsigned = Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display;
+pub trait Unsigned =
+    Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display + Debug;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub struct UVec3<U: Unsigned> {
