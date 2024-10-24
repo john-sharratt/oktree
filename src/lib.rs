@@ -68,7 +68,7 @@ where
             }
 
             while let Some(insertion) = insertions.pop() {
-                match self.rinsert(insertion, &mut insertions) {
+                match self._insert(insertion, &mut insertions) {
                     Ok(()) => (),
                     Err(err) => {
                         self.elements.remove(element);
@@ -85,7 +85,7 @@ where
         }
     }
 
-    fn rinsert(
+    fn _insert(
         &mut self,
         insertion: Insertion<U>,
         insertions: &mut HVec<Insertion<U>, 2>,
