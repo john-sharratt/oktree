@@ -15,15 +15,14 @@ use std::{
 };
 
 use bounding::{Aabb, UVec3, Unsigned};
-use num::cast;
 
-pub trait Translatable {
+pub trait Position {
     type U: Unsigned;
 
-    fn translation(&self) -> UVec3<Self::U>;
+    fn position(&self) -> UVec3<Self::U>;
 }
 
-pub trait Nodable {
+pub trait NodeStore {
     fn set_node(&mut self, node: NodeId);
 
     fn get_node(&self) -> NodeId;
@@ -33,7 +32,7 @@ pub trait Nodable {
 pub struct Octree<U, T>
 where
     U: Unsigned,
-    T: Translatable<U = U> + Nodable,
+    T: Position<U = U> + NodeStore,
 {
     pub elements: Pool<T>,
     pub nodes: Pool<Node<U>>,
@@ -43,7 +42,7 @@ where
 impl<U, T> Octree<U, T>
 where
     U: Unsigned,
-    T: Translatable<U = U> + Nodable,
+    T: Position<U = U> + NodeStore,
 {
     pub fn from_aabb(aabb: Aabb<U>) -> Self {
         Octree {
@@ -53,8 +52,24 @@ where
         }
     }
 
+    pub fn with_capacity(capacity: usize) -> Self {
+        Octree {
+            elements: Pool::<T>::with_capacity(capacity),
+            nodes: Pool::<Node<U>>::with_capacity(capacity),
+            root: Default::default(),
+        }
+    }
+
+    pub fn from_aabb_with_capacity(aabb: Aabb<U>, capacity: usize) -> Self {
+        Octree {
+            elements: Pool::<T>::with_capacity(capacity),
+            nodes: Pool::<Node<U>>::from_aabb_with_capacity(aabb, capacity),
+            root: Default::default(),
+        }
+    }
+
     pub fn insert(&mut self, elem: T) -> Result<(), TreeError> {
-        let position = elem.translation();
+        let position = elem.position();
         if self.nodes[self.root].aabb.contains(position) {
             let element = self.elements.insert(elem);
 
@@ -132,7 +147,7 @@ where
                     insertions.push_unchecked(Insertion {
                         element: e,
                         node,
-                        position: self.elements[e].translation(),
+                        position: self.elements[e].position(),
                     })
                 }
             }
@@ -197,7 +212,7 @@ impl<U: Unsigned> Default for Pool<Node<U>> {
     }
 }
 
-impl<T: Translatable> Default for Pool<T> {
+impl<T: Position> Default for Pool<T> {
     fn default() -> Self {
         Pool {
             vec: Default::default(),
@@ -228,7 +243,7 @@ impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
     }
 }
 
-impl<T: Translatable> Index<ElementId> for Pool<T> {
+impl<T: Position> Index<ElementId> for Pool<T> {
     type Output = T;
 
     fn index(&self, index: ElementId) -> &Self::Output {
@@ -240,7 +255,7 @@ impl<T: Translatable> Index<ElementId> for Pool<T> {
     }
 }
 
-impl<T: Translatable> IndexMut<ElementId> for Pool<T> {
+impl<T: Position> IndexMut<ElementId> for Pool<T> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
             !self.garbage.contains(&index.into()),
@@ -310,6 +325,28 @@ impl<U: Unsigned> Pool<Node<U>> {
     fn from_aabb(aabb: Aabb<U>) -> Self {
         let root = Node::from_aabb(aabb, None);
         let vec = vec![root];
+        Pool {
+            vec,
+            garbage: Default::default(),
+        }
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        let root = Node::default();
+        let mut vec = Vec::with_capacity(capacity);
+        vec.push(root);
+
+        Pool {
+            vec,
+            garbage: Default::default(),
+        }
+    }
+
+    fn from_aabb_with_capacity(aabb: Aabb<U>, capacity: usize) -> Self {
+        let root = Node::from_aabb(aabb, None);
+        let mut vec = Vec::with_capacity(capacity);
+        vec.push(root);
+
         Pool {
             vec,
             garbage: Default::default(),
@@ -406,7 +443,14 @@ impl<U: Unsigned> Pool<Node<U>> {
     }
 }
 
-impl<T: Translatable> Pool<T> {
+impl<T: Position> Pool<T> {
+    fn with_capacity(capacity: usize) -> Self {
+        Pool {
+            vec: Vec::with_capacity(capacity),
+            garbage: Default::default(),
+        }
+    }
+
     fn insert(&mut self, t: T) -> ElementId {
         self._insert(t).into()
     }
@@ -450,10 +494,7 @@ pub struct Node<U: Unsigned> {
 impl<U: Unsigned> Default for Node<U> {
     fn default() -> Self {
         Node {
-            aabb: Aabb {
-                min: UVec3::new(cast(0).unwrap(), cast(0).unwrap(), cast(0).unwrap()),
-                max: UVec3::new(cast(1).unwrap(), cast(1).unwrap(), cast(1).unwrap()),
-            },
+            aabb: Aabb::<U>::default(),
             ntype: Default::default(),
             parent: Default::default(),
         }
@@ -619,14 +660,14 @@ mod tests {
         node: NodeId,
     }
 
-    impl<U: Unsigned> Translatable for DummyCell<U> {
+    impl<U: Unsigned> Position for DummyCell<U> {
         type U = U;
-        fn translation(&self) -> UVec3<U> {
+        fn position(&self) -> UVec3<U> {
             self.position
         }
     }
 
-    impl<U: Unsigned> Nodable for DummyCell<U> {
+    impl<U: Unsigned> NodeStore for DummyCell<U> {
         fn get_node(&self) -> NodeId {
             self.node
         }
@@ -811,7 +852,7 @@ mod tests {
 
         for element in 0..tree.elements.len() {
             if let Err(err) = tree.remove(element.into()) {
-                println!("{err} || {}", tree.elements[element.into()].translation());
+                println!("{err} || {}", tree.elements[element.into()].position());
             }
         }
 
@@ -860,5 +901,35 @@ mod tests {
             assert_eq!(tree.elements.vec.len(), 16);
             assert_eq!(tree.elements.garbage_len(), (i + 1) as usize);
         }
+    }
+
+    #[test]
+    fn test_constructors() {
+        let aabb = Aabb::default();
+
+        let tree: Octree<u8, DummyCell<u8>> = Octree::from_aabb(aabb);
+        assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.elements.garbage_len(), 0);
+        assert_eq!(tree.nodes.len(), 1);
+        assert_eq!(tree.nodes.garbage_len(), 0);
+        assert_eq!(tree.nodes[0.into()].aabb, aabb);
+
+        let tree: Octree<u8, DummyCell<u8>> = Octree::with_capacity(100);
+        assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.elements.garbage_len(), 0);
+        assert_eq!(tree.elements.vec.capacity(), 100);
+        assert_eq!(tree.nodes.len(), 1);
+        assert_eq!(tree.nodes.garbage_len(), 0);
+        assert_eq!(tree.nodes.vec.capacity(), 100);
+        assert_eq!(tree.nodes[0.into()].aabb, Aabb::default());
+
+        let tree: Octree<u8, DummyCell<u8>> = Octree::from_aabb_with_capacity(aabb, 50);
+        assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.elements.garbage_len(), 0);
+        assert_eq!(tree.elements.vec.capacity(), 50);
+        assert_eq!(tree.nodes.len(), 1);
+        assert_eq!(tree.nodes.garbage_len(), 0);
+        assert_eq!(tree.nodes.vec.capacity(), 50);
+        assert_eq!(tree.nodes[0.into()].aabb, aabb);
     }
 }

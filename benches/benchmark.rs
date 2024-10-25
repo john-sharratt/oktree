@@ -4,7 +4,7 @@ use bevy::math::{bounding::RayCast3d, Dir3A, Vec3A};
 use criterion::{criterion_group, criterion_main, Criterion};
 use oktree::{
     bounding::{Aabb, UVec3, Unsigned},
-    Nodable, NodeId, Octree, Translatable,
+    NodeId, NodeStore, Octree, Position,
 };
 use rand::Rng;
 
@@ -16,14 +16,14 @@ struct DummyCell<U: Unsigned> {
     node: NodeId,
 }
 
-impl<U: Unsigned> Translatable for DummyCell<U> {
+impl<U: Unsigned> Position for DummyCell<U> {
     type U = U;
-    fn translation(&self) -> UVec3<U> {
+    fn position(&self) -> UVec3<U> {
         self.position
     }
 }
 
-impl<U: Unsigned> Nodable for DummyCell<U> {
+impl<U: Unsigned> NodeStore for DummyCell<U> {
     fn get_node(&self) -> NodeId {
         self.node
     }
@@ -72,7 +72,8 @@ fn random_rays() -> [RayCast3d; RANGE] {
 }
 
 fn octree_insert(points: &[DummyCell<usize>; RANGE]) {
-    let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
+    let mut tree =
+        Octree::from_aabb_with_capacity(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2), RANGE);
 
     for p in points {
         let _ = tree.insert(*p);
@@ -80,7 +81,8 @@ fn octree_insert(points: &[DummyCell<usize>; RANGE]) {
 }
 
 fn octree_remove(points: &[DummyCell<usize>; RANGE]) {
-    let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
+    let mut tree =
+        Octree::from_aabb_with_capacity(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2), RANGE);
 
     for p in points {
         let _ = tree.insert(*p);
@@ -92,7 +94,8 @@ fn octree_remove(points: &[DummyCell<usize>; RANGE]) {
 }
 
 fn octree_intersection(points: &[DummyCell<usize>; RANGE], rays: &[RayCast3d; RANGE]) {
-    let mut tree = Octree::from_aabb(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2));
+    let mut tree =
+        Octree::from_aabb_with_capacity(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2), RANGE);
 
     for p in points {
         let _ = tree.insert(*p);

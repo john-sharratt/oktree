@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::{color::palettes::css::RED, prelude::*};
 use oktree::{
     bounding::{Aabb, UVec3 as TUVec3, Unsigned},
-    Nodable, NodeId, NodeType, Octree, Translatable,
+    NodeStore, NodeId, NodeType, Octree, Position,
 };
 use rand::Rng;
 
@@ -126,14 +126,14 @@ struct DummyCell<U: Unsigned> {
     node: NodeId,
 }
 
-impl<U: Unsigned> Translatable for DummyCell<U> {
+impl<U: Unsigned> Position for DummyCell<U> {
     type U = U;
-    fn translation(&self) -> TUVec3<U> {
+    fn position(&self) -> TUVec3<U> {
         self.position
     }
 }
 
-impl<U: Unsigned> Nodable for DummyCell<U> {
+impl<U: Unsigned> NodeStore for DummyCell<U> {
     fn get_node(&self) -> NodeId {
         self.node
     }

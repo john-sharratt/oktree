@@ -7,7 +7,7 @@ use std::{
 use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 
 pub trait Unsigned =
-    Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display + Debug;
+    Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display + Debug + Default;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub struct UVec3<U: Unsigned> {
@@ -85,10 +85,19 @@ impl BVec3 {
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb<U: Unsigned> {
     pub min: UVec3<U>,
     pub max: UVec3<U>,
+}
+
+impl<U: Unsigned> Default for Aabb<U> {
+    fn default() -> Self {
+        Self {
+            min: UVec3::new(cast(0).unwrap(), cast(0).unwrap(), cast(0).unwrap()),
+            max: UVec3::new(cast(1).unwrap(), cast(1).unwrap(), cast(1).unwrap()),
+        }
+    }
 }
 
 impl<U: Unsigned> Aabb<U> {

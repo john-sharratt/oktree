@@ -6,13 +6,13 @@ use num::cast;
 
 use crate::{
     bounding::{Aabb, UVec3, Unsigned},
-    Branch, ElementId, Nodable, NodeId, NodeType, Octree, Translatable,
+    Branch, ElementId, NodeId, NodeStore, NodeType, Octree, Position,
 };
 
 impl<U, T> Octree<U, T>
 where
     U: Unsigned,
-    T: Translatable<U = U> + Nodable,
+    T: Position<U = U> + NodeStore,
 {
     pub fn ray_cast(&self, ray: &RayCast3d) -> Option<ElementId> {
         let mut hit = HitResult::default();
@@ -35,7 +35,7 @@ where
                 }
 
                 NodeType::Leaf(element) => {
-                    let min = self.elements[element].translation();
+                    let min = self.elements[element].position();
                     let max = UVec3::new(
                         min.x + cast(1).unwrap(),
                         min.y + cast(1).unwrap(),
@@ -114,14 +114,14 @@ mod tests {
         node: NodeId,
     }
 
-    impl<U: Unsigned> Translatable for DummyCell<U> {
+    impl<U: Unsigned> Position for DummyCell<U> {
         type U = U;
-        fn translation(&self) -> UVec3<U> {
+        fn position(&self) -> UVec3<U> {
             self.position
         }
     }
 
-    impl<U: Unsigned> Nodable for DummyCell<U> {
+    impl<U: Unsigned> NodeStore for DummyCell<U> {
         fn get_node(&self) -> NodeId {
             self.node
         }
