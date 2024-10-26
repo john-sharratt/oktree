@@ -22,32 +22,28 @@ pub trait Position {
     fn position(&self) -> UVec3<Self::U>;
 }
 
-pub trait NodeStore {
-    fn set_node(&mut self, node: NodeId);
-
-    fn get_node(&self) -> NodeId;
-}
-
 #[derive(Default)]
 pub struct Octree<U, T>
 where
     U: Unsigned,
-    T: Position<U = U> + NodeStore,
+    T: Position<U = U>,
 {
     pub elements: Pool<T>,
     pub nodes: Pool<Node<U>>,
+    pub map: Pool<NodeId>,
     root: NodeId,
 }
 
 impl<U, T> Octree<U, T>
 where
     U: Unsigned,
-    T: Position<U = U> + NodeStore,
+    T: Position<U = U>,
 {
     pub fn from_aabb(aabb: Aabb<U>) -> Self {
         Octree {
             elements: Default::default(),
             nodes: Pool::from_aabb(aabb),
+            map: Default::default(),
             root: Default::default(),
         }
     }
@@ -56,6 +52,7 @@ where
         Octree {
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::with_capacity(capacity),
+            map: Pool::<NodeId>::with_capacity(capacity),
             root: Default::default(),
         }
     }
@@ -64,6 +61,7 @@ where
         Octree {
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::from_aabb_with_capacity(aabb, capacity),
+            map: Pool::<NodeId>::with_capacity(capacity),
             root: Default::default(),
         }
     }
@@ -72,6 +70,7 @@ where
         let position = elem.position();
         if self.nodes[self.root].aabb.contains(position) {
             let element = self.elements.insert(elem);
+            self.map.insert(0.into());
 
             let mut insertions: HVec<Insertion<U>, 2> = HVec::new();
             unsafe {
@@ -87,6 +86,7 @@ where
                     Ok(()) => (),
                     Err(err) => {
                         self.elements.remove(element);
+                        self.map.remove(element);
                         return Err(err);
                     }
                 }
@@ -129,7 +129,7 @@ where
                         }
                     }
                 }
-                self.elements[element].set_node(node);
+                self.map[element] = node;
             }
 
             NodeType::Leaf(e) => {
@@ -168,15 +168,16 @@ where
     }
 
     pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
-        let node = self.elements[element].get_node();
+        let node = self.map[element];
         let n = &mut self.nodes[node];
         let parent = n.parent;
         match n.ntype {
             NodeType::Leaf(_) => {
                 self.elements.remove(element);
+                self.map.remove(element);
                 n.ntype = NodeType::Empty;
                 if let Some((element, node)) = self.nodes.collapse(parent)? {
-                    self.elements[element].set_node(node);
+                    self.map[element] = node;
                 }
                 Ok(())
             }
@@ -221,6 +222,15 @@ impl<T: Position> Default for Pool<T> {
     }
 }
 
+impl Default for Pool<NodeId> {
+    fn default() -> Self {
+        Pool {
+            vec: Default::default(),
+            garbage: Default::default(),
+        }
+    }
+}
+
 impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
     type Output = Node<U>;
 
@@ -256,6 +266,28 @@ impl<T: Position> Index<ElementId> for Pool<T> {
 }
 
 impl<T: Position> IndexMut<ElementId> for Pool<T> {
+    fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
+        debug_assert!(
+            !self.garbage.contains(&index.into()),
+            "Mut Indexing garbaged element: {index}"
+        );
+        self.get_mut_unchecked(index)
+    }
+}
+
+impl Index<ElementId> for Pool<NodeId> {
+    type Output = NodeId;
+
+    fn index(&self, index: ElementId) -> &Self::Output {
+        debug_assert!(
+            !self.garbage.contains(&index.into()),
+            "Indexing garbaged element: {index}"
+        );
+        self.get_unchecked(index)
+    }
+}
+
+impl IndexMut<ElementId> for Pool<NodeId> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
             !self.garbage.contains(&index.into()),
@@ -459,28 +491,69 @@ impl<T: Position> Pool<T> {
         self.garbage.push(element.into());
     }
 
-    pub fn get(&self, node: ElementId) -> Option<&T> {
-        if !self.garbage.contains(&(node.0 as usize)) {
-            self.vec.get(node.0 as usize)
+    pub fn get(&self, element: ElementId) -> Option<&T> {
+        if !self.garbage.contains(&(element.0 as usize)) {
+            self.vec.get(element.0 as usize)
         } else {
             None
         }
     }
 
-    pub fn get_mut(&mut self, node: ElementId) -> Option<&mut T> {
-        if !self.garbage.contains(&(node.0 as usize)) {
-            self.vec.get_mut(node.0 as usize)
+    pub fn get_mut(&mut self, element: ElementId) -> Option<&mut T> {
+        if !self.garbage.contains(&(element.0 as usize)) {
+            self.vec.get_mut(element.0 as usize)
         } else {
             None
         }
     }
 
-    pub fn get_unchecked(&self, node: ElementId) -> &T {
-        &self.vec[node.0 as usize]
+    pub fn get_unchecked(&self, element: ElementId) -> &T {
+        &self.vec[element.0 as usize]
     }
 
-    pub fn get_mut_unchecked(&mut self, node: ElementId) -> &mut T {
-        &mut self.vec[node.0 as usize]
+    pub fn get_mut_unchecked(&mut self, element: ElementId) -> &mut T {
+        &mut self.vec[element.0 as usize]
+    }
+}
+
+impl Pool<NodeId> {
+    fn with_capacity(capacity: usize) -> Self {
+        Pool {
+            vec: Vec::with_capacity(capacity),
+            garbage: Default::default(),
+        }
+    }
+
+    fn insert(&mut self, t: NodeId) -> ElementId {
+        self._insert(t).into()
+    }
+
+    fn remove(&mut self, element: ElementId) {
+        self.garbage.push(element.into());
+    }
+
+    pub fn get(&self, element: ElementId) -> Option<&NodeId> {
+        if !self.garbage.contains(&(element.0 as usize)) {
+            self.vec.get(element.0 as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mut(&mut self, element: ElementId) -> Option<&mut NodeId> {
+        if !self.garbage.contains(&(element.0 as usize)) {
+            self.vec.get_mut(element.0 as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_unchecked(&self, element: ElementId) -> &NodeId {
+        &self.vec[element.0 as usize]
+    }
+
+    pub fn get_mut_unchecked(&mut self, element: ElementId) -> &mut NodeId {
+        &mut self.vec[element.0 as usize]
     }
 }
 
@@ -553,7 +626,7 @@ impl Branch {
         }
     }
 
-    fn filled(children: [NodeId; 8], filled: u8) -> Self {
+    fn from_filled(children: [NodeId; 8], filled: u8) -> Self {
         Branch { children, filled }
     }
 
@@ -667,16 +740,6 @@ mod tests {
         }
     }
 
-    impl<U: Unsigned> NodeStore for DummyCell<U> {
-        fn get_node(&self) -> NodeId {
-            self.node
-        }
-
-        fn set_node(&mut self, node: NodeId) {
-            self.node = node
-        }
-    }
-
     impl<U: Unsigned> DummyCell<U> {
         fn new(position: UVec3<U>) -> Self {
             DummyCell {
@@ -696,6 +759,9 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
+        assert_eq!(tree.map.len(), 0);
+        assert_eq!(tree.map.garbage_len(), 0);
+
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
         assert_eq!(tree.nodes[0.into()].parent, None);
 
@@ -708,10 +774,12 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
+        assert_eq!(tree.map.len(), 1);
+        assert_eq!(tree.map.garbage_len(), 0);
+        assert_eq!(tree.map[0.into()], 0.into());
+
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.into()));
         assert_eq!(tree.nodes[0.into()].parent, None);
-
-        assert_eq!(tree.elements[0.into()].get_node(), 0.into());
 
         let c2 = DummyCell::new(UVec3::new(7, 7, 7));
         assert_eq!(tree.insert(c2), Ok(()));
@@ -722,12 +790,17 @@ mod tests {
         assert_eq!(tree.nodes.len(), 9);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
+        assert_eq!(tree.map.len(), 2);
+        assert_eq!(tree.map.garbage_len(), 0);
+        assert_eq!(tree.map[0.into()], 1.into());
+        assert_eq!(tree.map[1.into()], 8.into());
+
         assert_eq!(tree.nodes[0.into()].parent, None);
 
         let children = from_fn(|i| NodeId(i as u32 + 1));
         assert_eq!(
             tree.nodes[0.into()].ntype,
-            NodeType::Branch(Branch::filled(children, 2))
+            NodeType::Branch(Branch::from_filled(children, 2))
         );
 
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(0.into()));
@@ -738,8 +811,10 @@ mod tests {
             assert_eq!(tree.nodes[i.into()].ntype, NodeType::Empty);
         }
 
-        assert_eq!(tree.elements[0.into()].get_node(), 1.into());
-        assert_eq!(tree.elements[1.into()].get_node(), 8.into());
+        assert_eq!(tree.map.len(), 2);
+        assert_eq!(tree.map.garbage_len(), 0);
+        assert_eq!(tree.map[0.into()], 1.into());
+        assert_eq!(tree.map[1.into()], 8.into());
     }
 
     #[test]
@@ -748,10 +823,11 @@ mod tests {
 
         let c1 = DummyCell::new(UVec3::new(1, 1, 1));
         assert_eq!(tree.insert(c1), Ok(()));
-        assert_eq!(tree.elements[0.into()].get_node(), 0.into());
+        assert_eq!(tree.map[0.into()], 0.into());
         let c2 = DummyCell::new(UVec3::new(2, 2, 2));
         assert_eq!(tree.insert(c2), Ok(()));
-        assert_eq!(tree.elements[0.into()].get_node(), 17.into());
+        assert_eq!(tree.map[0.into()], 17.into());
+        assert_eq!(tree.map[1.into()], 24.into());
         assert_eq!(tree.nodes[17.into()].ntype, NodeType::Leaf(0.into()));
 
         assert_eq!(tree.nodes.len(), 25);
@@ -766,15 +842,18 @@ mod tests {
 
         assert_eq!(tree.nodes.len(), 33);
         assert_eq!(tree.elements.len(), 2);
+        assert_eq!(tree.map.len(), 2);
 
         tree.remove(0.into()).unwrap();
 
         assert_eq!(tree.elements.len(), 1);
+        assert_eq!(tree.map.len(), 1);
         assert_eq!(tree.nodes.len(), 17);
 
         tree.remove(1.into()).unwrap();
 
         assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.map.len(), 0);
         assert_eq!(tree.nodes.len(), 1);
 
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty)
@@ -827,6 +906,7 @@ mod tests {
         assert_eq!(tree.nodes[0.into()].ntype, NodeType::Empty);
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.map.len(), 0);
     }
 
     fn random_point() -> DummyCell<usize> {
@@ -849,6 +929,7 @@ mod tests {
         }
 
         assert!(tree.elements.len() > (RANGE as f32 * 0.98) as usize);
+        assert!(tree.map.len() > (RANGE as f32 * 0.98) as usize);
 
         for element in 0..tree.elements.len() {
             if let Err(err) = tree.remove(element.into()) {
@@ -857,6 +938,7 @@ mod tests {
         }
 
         assert_eq!(tree.elements.len(), 0);
+        assert_eq!(tree.map.len(), 0);
         assert_eq!(tree.nodes.len(), 1);
     }
 

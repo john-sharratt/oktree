@@ -6,13 +6,13 @@ use num::cast;
 
 use crate::{
     bounding::{Aabb, UVec3, Unsigned},
-    Branch, ElementId, NodeId, NodeStore, NodeType, Octree, Position,
+    Branch, ElementId, NodeId, NodeType, Octree, Position,
 };
 
 impl<U, T> Octree<U, T>
 where
     U: Unsigned,
-    T: Position<U = U> + NodeStore,
+    T: Position<U = U>,
 {
     pub fn ray_cast(&self, ray: &RayCast3d) -> Option<ElementId> {
         let mut hit = HitResult::default();
@@ -118,16 +118,6 @@ mod tests {
         type U = U;
         fn position(&self) -> UVec3<U> {
             self.position
-        }
-    }
-
-    impl<U: Unsigned> NodeStore for DummyCell<U> {
-        fn get_node(&self) -> NodeId {
-            self.node
-        }
-
-        fn set_node(&mut self, node: NodeId) {
-            self.node = node
         }
     }
 

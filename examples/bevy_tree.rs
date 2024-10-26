@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::{color::palettes::css::RED, prelude::*};
 use oktree::{
     bounding::{Aabb, UVec3 as TUVec3, Unsigned},
-    NodeStore, NodeId, NodeType, Octree, Position,
+    NodeType, Octree, Position,
 };
 use rand::Rng;
 
@@ -123,7 +123,6 @@ struct Camera;
 
 struct DummyCell<U: Unsigned> {
     position: TUVec3<U>,
-    node: NodeId,
 }
 
 impl<U: Unsigned> Position for DummyCell<U> {
@@ -133,21 +132,8 @@ impl<U: Unsigned> Position for DummyCell<U> {
     }
 }
 
-impl<U: Unsigned> NodeStore for DummyCell<U> {
-    fn get_node(&self) -> NodeId {
-        self.node
-    }
-
-    fn set_node(&mut self, node: NodeId) {
-        self.node = node
-    }
-}
-
 impl<U: Unsigned> DummyCell<U> {
     fn new(position: TUVec3<U>) -> Self {
-        DummyCell {
-            position,
-            node: Default::default(),
-        }
+        DummyCell { position }
     }
 }
