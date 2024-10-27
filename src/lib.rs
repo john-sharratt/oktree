@@ -23,7 +23,7 @@ pub trait Position {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
-pub struct NodeId(u32);
+pub struct NodeId(pub u32);
 
 impl From<NodeId> for usize {
     fn from(value: NodeId) -> Self {
@@ -44,7 +44,7 @@ impl fmt::Display for NodeId {
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
-pub struct ElementId(u32);
+pub struct ElementId(pub u32);
 
 impl From<ElementId> for usize {
     fn from(value: ElementId) -> Self {
@@ -99,7 +99,7 @@ mod tests {
 
     const RANGE: usize = 65536;
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     struct DummyCell<U: Unsigned> {
         position: TUVec3<U>,
         node: NodeId,
@@ -385,5 +385,23 @@ mod tests {
         assert_eq!(tree.nodes.garbage_len(), 0);
         assert_eq!(tree.nodes.vec.capacity(), 50);
         assert_eq!(tree.nodes[0.into()].aabb, aabb);
+    }
+
+    #[test]
+    fn test_to_vec() {
+        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+        assert_eq!(tree.insert(DummyCell::new(TUVec3::splat(1u8))), Ok(()));
+        assert_eq!(tree.insert(DummyCell::new(TUVec3::splat(2u8))), Ok(()));
+        assert_eq!(tree.insert(DummyCell::new(TUVec3::splat(3u8))), Ok(()));
+
+        assert_eq!(tree.remove(1.into()), Ok(()));
+
+        assert_eq!(
+            tree.to_vec(),
+            vec![
+                DummyCell::new(TUVec3::splat(1u8)),
+                DummyCell::new(TUVec3::splat(3u8))
+            ]
+        )
     }
 }

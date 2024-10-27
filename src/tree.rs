@@ -172,6 +172,22 @@ where
             ))),
         }
     }
+
+    pub fn to_vec(self) -> Vec<T> {
+        let garbage = self.elements.garbage;
+        self.elements
+            .vec
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, element)| {
+                if garbage.contains(&i) {
+                    None
+                } else {
+                    Some(element)
+                }
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug)]
