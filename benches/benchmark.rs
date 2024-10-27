@@ -4,7 +4,8 @@ use bevy::math::{bounding::RayCast3d, Dir3A, Vec3A};
 use criterion::{criterion_group, criterion_main, Criterion};
 use oktree::{
     bounding::{Aabb, UVec3, Unsigned},
-    Octree, Position,
+    tree::Octree,
+    Position,
 };
 use rand::Rng;
 

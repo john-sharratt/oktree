@@ -6,7 +6,9 @@ use num::cast;
 
 use crate::{
     bounding::{Aabb, UVec3, Unsigned},
-    Branch, ElementId, NodeId, NodeType, Octree, Position,
+    node::{Branch, NodeType},
+    tree::Octree,
+    ElementId, NodeId, Position,
 };
 
 impl<U, T> Octree<U, T>

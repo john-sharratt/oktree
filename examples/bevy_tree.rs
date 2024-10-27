@@ -3,8 +3,11 @@ use std::time::Duration;
 use bevy::{color::palettes::css::RED, prelude::*};
 use oktree::{
     bounding::{Aabb, UVec3 as TUVec3, Unsigned},
-    NodeType, Octree, Position,
+    node::NodeType,
+    tree::Octree,
+    Position,
 };
+
 use rand::Rng;
 
 const SIZE: u32 = 256;
@@ -46,16 +49,15 @@ fn setup(mut commands: Commands) {
 
 fn draw_nodes(mut gizmos: Gizmos, tree: Res<Tree>) {
     for node in tree.0.nodes.iter() {
-        let color = match node.ntype {
-            NodeType::Empty => Color::srgb(0.7, 0.7, 0.7),
-            NodeType::Leaf(_) => Color::srgb(0.9, 0.45, 0.0),
-            NodeType::Branch(_) => Color::srgb(0.9, 0.9, 0.9),
-        };
         let scale = node.aabb.size() as f32;
         let transform =
             Transform::from_translation(node.aabb.center().into()).with_scale(Vec3::splat(scale));
 
-        gizmos.cuboid(transform, color);
+        match node.ntype {
+            NodeType::Empty => gizmos.cuboid(transform, Color::srgb(0.7, 0.7, 0.7)),
+            NodeType::Leaf(_) => gizmos.cuboid(transform, Color::srgb(0.9, 0.45, 0.0)),
+            NodeType::Branch(_) => (),
+        };
     }
 }
 
