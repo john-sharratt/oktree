@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::{
-    bounding::{Aabb, UVec3, Unsigned},
+    bounding::{Aabb, TUVec3, Unsigned},
     ElementId, NodeId, TreeError,
 };
 
@@ -89,8 +89,8 @@ impl Branch {
 
     pub fn find_child<U: Unsigned>(
         &self,
-        position: UVec3<U>,
-        center: UVec3<U>,
+        position: TUVec3<U>,
+        center: TUVec3<U>,
     ) -> Result<NodeId, TreeError> {
         let x = if position.x < center.x { 0 } else { 1 };
         let y = if position.y < center.y { 0 } else { 1 };

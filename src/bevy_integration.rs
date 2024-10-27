@@ -5,7 +5,7 @@ use bevy::math::{
 use num::cast;
 
 use crate::{
-    bounding::{Aabb, UVec3, Unsigned},
+    bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, NodeType},
     tree::Octree,
     ElementId, NodeId, Position,
@@ -38,7 +38,7 @@ where
 
                 NodeType::Leaf(element) => {
                     let min = self.elements[element].position();
-                    let max = UVec3::new(
+                    let max = TUVec3::new(
                         min.x + cast(1).unwrap(),
                         min.y + cast(1).unwrap(),
                         min.z + cast(1).unwrap(),
@@ -84,8 +84,8 @@ impl<U: Unsigned> From<Aabb<U>> for Aabb3d {
     }
 }
 
-impl<U: Unsigned> From<UVec3<U>> for Vec3A {
-    fn from(value: UVec3<U>) -> Self {
+impl<U: Unsigned> From<TUVec3<U>> for Vec3A {
+    fn from(value: TUVec3<U>) -> Self {
         Vec3A::new(
             cast(value.x).unwrap(),
             cast(value.y).unwrap(),
@@ -94,8 +94,8 @@ impl<U: Unsigned> From<UVec3<U>> for Vec3A {
     }
 }
 
-impl<U: Unsigned> From<UVec3<U>> for Vec3 {
-    fn from(value: UVec3<U>) -> Self {
+impl<U: Unsigned> From<TUVec3<U>> for Vec3 {
+    fn from(value: TUVec3<U>) -> Self {
         Vec3::new(
             cast(value.x).unwrap(),
             cast(value.y).unwrap(),
@@ -112,19 +112,19 @@ mod tests {
     use super::*;
 
     struct DummyCell<U: Unsigned> {
-        position: UVec3<U>,
+        position: TUVec3<U>,
         node: NodeId,
     }
 
     impl<U: Unsigned> Position for DummyCell<U> {
         type U = U;
-        fn position(&self) -> UVec3<U> {
+        fn position(&self) -> TUVec3<U> {
             self.position
         }
     }
 
     impl<U: Unsigned> DummyCell<U> {
-        fn new(position: UVec3<U>) -> Self {
+        fn new(position: TUVec3<U>) -> Self {
             DummyCell {
                 position,
                 node: Default::default(),
@@ -134,12 +134,12 @@ mod tests {
 
     #[test]
     fn test_ray_intersection() {
-        let mut tree = Octree::from_aabb(Aabb::new(UVec3::new(4u16, 4, 4), 4));
+        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::new(4u16, 4, 4), 4));
 
-        let c1 = DummyCell::new(UVec3::new(1, 1, 1));
+        let c1 = DummyCell::new(TUVec3::new(1, 1, 1));
         assert_eq!(tree.insert(c1), Ok(()));
 
-        let c2 = DummyCell::new(UVec3::new(1, 5, 1));
+        let c2 = DummyCell::new(TUVec3::new(1, 5, 1));
         assert_eq!(tree.insert(c2), Ok(()));
 
         let ray = RayCast3d::new(Vec3A::new(1.5, 1.5, 1.5), Dir3A::Y, 10.0);

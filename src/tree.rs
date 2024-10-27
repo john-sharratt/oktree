@@ -1,5 +1,5 @@
 use crate::{
-    bounding::{Aabb, UVec3, Unsigned},
+    bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},
     pool::Pool,
     ElementId, NodeId, Position, TreeError,
@@ -178,5 +178,5 @@ where
 struct Insertion<U: Unsigned> {
     element: ElementId,
     node: NodeId,
-    position: UVec3<U>,
+    position: TUVec3<U>,
 }

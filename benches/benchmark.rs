@@ -2,29 +2,25 @@ use std::{array::from_fn, time::Duration};
 
 use bevy::math::{bounding::RayCast3d, Dir3A, Vec3A};
 use criterion::{criterion_group, criterion_main, Criterion};
-use oktree::{
-    bounding::{Aabb, UVec3, Unsigned},
-    tree::Octree,
-    Position,
-};
+use oktree::prelude::*;
 use rand::Rng;
 
 const RANGE: usize = 4096;
 
 #[derive(Clone, Copy)]
 struct DummyCell<U: Unsigned> {
-    position: UVec3<U>,
+    position: TUVec3<U>,
 }
 
 impl<U: Unsigned> Position for DummyCell<U> {
     type U = U;
-    fn position(&self) -> UVec3<U> {
+    fn position(&self) -> TUVec3<U> {
         self.position
     }
 }
 
 impl<U: Unsigned> DummyCell<U> {
-    fn new(position: UVec3<U>) -> Self {
+    fn new(position: TUVec3<U>) -> Self {
         DummyCell { position }
     }
 }
@@ -35,7 +31,7 @@ fn random_points() -> [DummyCell<usize>; RANGE] {
         let x = rnd.gen_range(0..=RANGE);
         let y = rnd.gen_range(0..=RANGE);
         let z = rnd.gen_range(0..=RANGE);
-        let position = UVec3::new(x, y, z);
+        let position = TUVec3::new(x, y, z);
         DummyCell::new(position)
     })
 }
@@ -60,7 +56,7 @@ fn random_rays() -> [RayCast3d; RANGE] {
 
 fn octree_insert(points: &[DummyCell<usize>; RANGE]) {
     let mut tree =
-        Octree::from_aabb_with_capacity(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2), RANGE);
+        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), RANGE);
 
     for p in points {
         let _ = tree.insert(*p);
@@ -69,7 +65,7 @@ fn octree_insert(points: &[DummyCell<usize>; RANGE]) {
 
 fn octree_remove(points: &[DummyCell<usize>; RANGE]) {
     let mut tree =
-        Octree::from_aabb_with_capacity(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2), RANGE);
+        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), RANGE);
 
     for p in points {
         let _ = tree.insert(*p);
@@ -82,7 +78,7 @@ fn octree_remove(points: &[DummyCell<usize>; RANGE]) {
 
 fn octree_intersection(points: &[DummyCell<usize>; RANGE], rays: &[RayCast3d; RANGE]) {
     let mut tree =
-        Octree::from_aabb_with_capacity(Aabb::new(UVec3::splat(RANGE / 2), RANGE / 2), RANGE);
+        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), RANGE);
 
     for p in points {
         let _ = tree.insert(*p);

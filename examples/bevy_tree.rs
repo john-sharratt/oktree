@@ -1,13 +1,7 @@
 use std::time::Duration;
 
 use bevy::{color::palettes::css::RED, prelude::*};
-use oktree::{
-    bounding::{Aabb, UVec3 as TUVec3, Unsigned},
-    node::NodeType,
-    tree::Octree,
-    Position,
-};
-
+use oktree::prelude::*;
 use rand::Rng;
 
 const SIZE: u32 = 256;
