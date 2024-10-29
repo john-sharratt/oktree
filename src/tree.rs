@@ -119,9 +119,9 @@ where
 
             NodeType::Leaf(e) => {
                 if self.nodes[node].aabb.unit() {
-                    return Err(TreeError::SplitUnit(format!(
-                        "Attempt to insert element into a leaf with size 1"
-                    )));
+                    return Err(TreeError::SplitUnit(
+                        "Attempt to insert element into a leaf with size 1".into(),
+                    ));
                 }
                 let children = self.nodes.branch(node);
 

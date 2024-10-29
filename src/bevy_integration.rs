@@ -18,7 +18,7 @@ where
 {
     pub fn ray_cast(&self, ray: &RayCast3d) -> Option<ElementId> {
         let mut hit = HitResult::default();
-        self.recursive_ray_cast(self.root, &ray, &mut hit);
+        self.recursive_ray_cast(self.root, ray, &mut hit);
         hit.element
     }
 

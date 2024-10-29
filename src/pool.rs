@@ -125,6 +125,10 @@ impl<T> Pool<T> {
         self.vec.len() - self.garbage_len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn garbage_len(&self) -> usize {
         self.garbage.len()
     }
