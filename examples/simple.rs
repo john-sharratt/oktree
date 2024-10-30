@@ -1,5 +1,5 @@
 use bevy::math::{bounding::RayCast3d, Dir3, Vec3};
-use oktree::{prelude::*, ElementId};
+use oktree::{bevy_integration::HitResult, prelude::*, ElementId};
 
 fn main() -> Result<(), TreeError> {
     let aabb = Aabb::new(TUVec3::splat(16), 16u8);
@@ -11,11 +11,23 @@ fn main() -> Result<(), TreeError> {
     tree.insert(c1)?;
     tree.insert(c2)?;
 
-    let ray = RayCast3d::new(Vec3::splat(1.5), Dir3::X, 100.0);
-    assert_eq!(tree.ray_cast(&ray), Some(ElementId(0)));
+    let ray = RayCast3d::new(Vec3::new(1.5, 7.0, 1.9), Dir3::NEG_Y, 100.0);
+    assert_eq!(
+        tree.ray_cast(&ray),
+        HitResult {
+            element: Some(ElementId(0)),
+            distance: 5.0
+        }
+    );
 
     assert_eq!(tree.remove(ElementId(0)), Ok(()));
-    assert_eq!(tree.ray_cast(&ray), None);
+    assert_eq!(
+        tree.ray_cast(&ray),
+        HitResult {
+            element: None,
+            distance: 0.0
+        }
+    );
     Ok(())
 }
 

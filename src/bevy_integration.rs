@@ -16,10 +16,10 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
-    pub fn ray_cast(&self, ray: &RayCast3d) -> Option<ElementId> {
+    pub fn ray_cast(&self, ray: &RayCast3d) -> HitResult {
         let mut hit = HitResult::default();
         self.recursive_ray_cast(self.root, ray, &mut hit);
-        hit.element
+        hit
     }
 
     fn recursive_ray_cast(&self, node: NodeId, ray: &RayCast3d, hit: &mut HitResult) {
@@ -53,11 +53,12 @@ where
                             Some(_) => {
                                 if hit.distance > dist {
                                     hit.element = Some(element);
+                                    hit.distance = dist;
                                 }
                             }
                             None => {
                                 hit.element = Some(element);
-                                hit.distance = dist
+                                hit.distance = dist;
                             }
                         }
                     }
@@ -69,10 +70,10 @@ where
     }
 }
 
-#[derive(Default, Clone, Copy)]
-struct HitResult {
-    element: Option<ElementId>,
-    distance: f32,
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct HitResult {
+    pub element: Option<ElementId>,
+    pub distance: f32,
 }
 
 impl<U: Unsigned> From<Aabb<U>> for Aabb3d {
@@ -136,28 +137,80 @@ mod tests {
     fn test_ray_intersection() {
         let mut tree = Octree::from_aabb(Aabb::new(TUVec3::new(4u16, 4, 4), 4));
 
-        let c1 = DummyCell::new(TUVec3::new(1, 1, 1));
+        let c1 = DummyCell::new(TUVec3::new(3, 1, 1));
         assert_eq!(tree.insert(c1), Ok(()));
 
         let c2 = DummyCell::new(TUVec3::new(1, 5, 1));
         assert_eq!(tree.insert(c2), Ok(()));
 
+        // hit 2nd
         let ray = RayCast3d::new(Vec3A::new(1.5, 1.5, 1.5), Dir3A::Y, 10.0);
-        assert_eq!(tree.ray_cast(&ray), Some(0.into()));
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: Some(1.into()),
+                distance: 3.5
+            }
+        );
 
+        // miss
         let ray = RayCast3d::new(Vec3A::ZERO, Dir3A::Y, 10.0);
-        assert_eq!(tree.ray_cast(&ray), None);
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: None,
+                distance: 0.0
+            }
+        );
 
-        let ray = RayCast3d::new(Vec3A::ONE, Dir3A::Y, 10.0);
-        assert_eq!(tree.ray_cast(&ray), Some(0.into()));
+        // hit 1st
+        let ray = RayCast3d::new(Vec3A::new(0.0, 1.05, 1.05), Dir3A::X, 10.0);
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: Some(0.into()),
+                distance: 3.0
+            }
+        );
 
+        // miss
         let ray = RayCast3d::new(Vec3A::new(40.0, 40.0, 40.0), Dir3A::X, 10.0);
-        assert_eq!(tree.ray_cast(&ray), None);
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: None,
+                distance: 0.0
+            }
+        );
 
-        let ray = RayCast3d::new(Vec3A::new(1.0, 1.0, 1.0), Dir3A::NEG_X, 10.0);
-        assert_eq!(tree.ray_cast(&ray), Some(0.into()));
+        // miss
+        let ray = RayCast3d::new(Vec3A::new(7.0, 5.9, 1.01), Dir3A::NEG_X, 10.0);
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: Some(1.into()),
+                distance: 5.0
+            }
+        );
 
-        let ray = RayCast3d::new(Vec3A::new(1.0, 5.9, 1.0), Dir3A::NEG_X, 10.0);
-        assert_eq!(tree.ray_cast(&ray), Some(1.into()));
+        // miss
+        let ray = RayCast3d::new(Vec3A::new(1.01, 1.01, 1.01), Dir3A::NEG_X, 10.0);
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: None,
+                distance: 0.0
+            }
+        );
+
+        // hit 1st
+        let ray = RayCast3d::new(Vec3A::new(3.05, 10.0, 1.05), Dir3A::NEG_Y, 10.0);
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: Some(0.into()),
+                distance: 8.0
+            }
+        );
     }
 }
