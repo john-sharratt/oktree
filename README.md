@@ -38,12 +38,6 @@ It must be any `Unsigned` type (`u8`, `u16`, `u32`, `u64`, `u128` or `usize`).
 
 Implement `Position` for the handled type, so that it can return it's spatial coordinates.
 
-Run bevy visual example:
-
-```
-cargo run --release --example bevy_tree
-```
-
 ```rust
 use bevy::math::{bounding::RayCast3d, Dir3, Vec3};
 use oktree::{prelude::*, ElementId};
@@ -94,4 +88,10 @@ fn main() -> Result<(), TreeError> {
     );
     Ok(())
 }
+```
+
+Run bevy visual example:
+
+```
+cargo run --release --example bevy_tree
 ```
