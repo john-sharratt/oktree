@@ -5,9 +5,11 @@
 
 Fast octree implementation.
 
+![Example](/assets/example.gif)
+
 Mainly usable with Bevy game engine for fast processing of voxel data.
 
-Optimizations:
+### Optimizations:
 
 - `Unsigned` arithmetics, bitwise operations.
 - Tree structure is represented by flat, reusable pools. Removed data is marked only as removed.
