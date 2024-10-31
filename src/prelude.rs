@@ -2,5 +2,8 @@ pub use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::NodeType,
     tree::Octree,
-    Position, TreeError,
+    ElementId, NodeId, Position, TreeError,
 };
+
+#[cfg(feature = "bevy")]
+pub use crate::bevy_integration::HitResult;

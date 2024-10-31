@@ -1,5 +1,5 @@
 use bevy::math::{bounding::RayCast3d, Dir3, Vec3};
-use oktree::{bevy_integration::HitResult, prelude::*, ElementId};
+use oktree::prelude::*;
 
 fn main() -> Result<(), TreeError> {
     let aabb = Aabb::new(TUVec3::splat(16), 16u8);

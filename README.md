@@ -42,7 +42,7 @@ Implement `Position` for the handled type, so that it can return it's spatial co
 
 ```rust
 use bevy::math::{bounding::RayCast3d, Dir3, Vec3};
-use oktree::{prelude::*, ElementId};
+use oktree::prelude::*;
 
 struct DummyCell<U: Unsigned> {
     position: TUVec3<U>,
