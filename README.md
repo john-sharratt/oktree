@@ -12,7 +12,7 @@ Mainly usable with Bevy game engine for fast processing of voxel data.
 ### Optimizations:
 
 - `Unsigned` arithmetics, bitwise operations.
-- Tree structure is represented by flat, reusable pools. Removed data is marked only as removed.
+- Tree structure is represented by flat, reusable pools. Removed data is marked only.
 - Few memory allocations. Heapless structures are used.
 - No smart pointers (RC, RefCell e.t.c)
 
@@ -44,23 +44,6 @@ Implement `Position` for the handled type, so that it can return it's spatial co
 use bevy::math::{bounding::RayCast3d, Dir3, Vec3};
 use oktree::prelude::*;
 
-struct DummyCell<U: Unsigned> {
-    position: TUVec3<U>,
-}
-
-impl<U: Unsigned> Position for DummyCell<U> {
-    type U = U;
-    fn position(&self) -> TUVec3<U> {
-        self.position
-    }
-}
-
-impl<U: Unsigned> DummyCell<U> {
-    fn new(position: TUVec3<U>) -> Self {
-        DummyCell { position }
-    }
-}
-
 fn main() -> Result<(), TreeError> {
     let aabb = Aabb::new(TUVec3::splat(16), 16u8);
     let mut tree = Octree::from_aabb_with_capacity(aabb, 10);
@@ -89,6 +72,23 @@ fn main() -> Result<(), TreeError> {
         }
     );
     Ok(())
+}
+
+struct DummyCell {
+    position: TUVec3<u8>,
+}
+
+impl Position for DummyCell {
+    type U = u8;
+    fn position(&self) -> TUVec3<u8> {
+        self.position
+    }
+}
+
+impl DummyCell {
+    fn new(position: TUVec3<u8>) -> Self {
+        DummyCell { position }
+    }
 }
 ```
 

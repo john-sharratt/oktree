@@ -31,19 +31,19 @@ fn main() -> Result<(), TreeError> {
     Ok(())
 }
 
-struct DummyCell<U: Unsigned> {
-    position: TUVec3<U>,
+struct DummyCell {
+    position: TUVec3<u8>,
 }
 
-impl<U: Unsigned> Position for DummyCell<U> {
-    type U = U;
-    fn position(&self) -> TUVec3<U> {
+impl Position for DummyCell {
+    type U = u8;
+    fn position(&self) -> TUVec3<u8> {
         self.position
     }
 }
 
-impl<U: Unsigned> DummyCell<U> {
-    fn new(position: TUVec3<U>) -> Self {
+impl DummyCell {
+    fn new(position: TUVec3<u8>) -> Self {
         DummyCell { position }
     }
 }
