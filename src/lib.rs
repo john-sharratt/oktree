@@ -114,12 +114,18 @@ use std::{
     fmt::{self},
 };
 
+// Implement on stored type to inform a tree
+// about object's spatial coordinates.
 pub trait Position {
     type U: Unsigned;
 
     fn position(&self) -> TUVec3<Self::U>;
 }
 
+/// Index [`tree.nodes`](pool::Pool) with it.
+/// ```rust
+/// let node: Node<u16> = tree.nodes[NodeId(0)]
+///```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct NodeId(pub u32);
 
@@ -141,6 +147,11 @@ impl fmt::Display for NodeId {
     }
 }
 
+/// Index [`tree.elements`](pool::Pool) with it.
+/// Stored type will be returned.
+/// ```rust
+/// let element = tree.elements[ElementId(0)]
+///```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct ElementId(pub u32);
 
@@ -162,12 +173,24 @@ impl fmt::Display for ElementId {
     }
 }
 
+/// Enum of all possible errors of the octree's operations.
 #[derive(Debug, PartialEq)]
 pub enum TreeError {
+    /// Object is out of bounds of tree's [`Aabb`](bounding::Aabb).
     OutOfTreeBounds(String),
+
+    /// Attempt to treat a [`Node`](node::Node) of different type
+    /// as a [`Branch`](node::NodeType::Branch).
     NotBranch(String),
+
+    /// Attempt to treat a [`Node`](node::Node) of different type
+    /// as a [`Leaf`](node::NodeType::Leaf).
     NotLeaf(String),
+
+    /// Only a [`Branch`](node::NodeType::Branch) [`Node`](node::Node) can be collapsed.
     CollapseNonEmpty(String),
+
+    /// Attempt to split a [`Node`](node::Node) with size of 1.
     SplitUnit(String),
 }
 
