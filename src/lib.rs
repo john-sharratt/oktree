@@ -1,7 +1,7 @@
 //! [![Crates.io](https://img.shields.io/crates/v/oktree.svg)](https://crates.io/crates/oktree)
 //! [![Docs.rs](https://docs.rs/oktree/badge.svg)](https://docs.rs/oktree)
 //!
-//! Fast octree implementation.
+//! Fast [`tree`](tree::Octree) implementation.
 //!
 //! ![Example](https://raw.githubusercontent.com/exor2008/oktree/main/assets/example.gif)
 //!
@@ -123,9 +123,10 @@ pub trait Position {
 }
 
 /// Index [`tree.nodes`](pool::Pool) with it.
-/// ```rust
+///
+/// ```no_run
 /// let node: Node<u16> = tree.nodes[NodeId(0)]
-///```
+/// ```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct NodeId(pub u32);
 
@@ -148,10 +149,11 @@ impl fmt::Display for NodeId {
 }
 
 /// Index [`tree.elements`](pool::Pool) with it.
-/// Stored type will be returned.
-/// ```rust
+/// Stored type element will be returned.
+///
+/// ```no_run
 /// let element = tree.elements[ElementId(0)]
-///```
+/// ```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct ElementId(pub u32);
 

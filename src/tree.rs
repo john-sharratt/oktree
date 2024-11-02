@@ -7,15 +7,28 @@ use crate::{
 
 use heapless::Vec as HVec;
 
+/// Fast implementation of the octree data structure.
+/// Helps to speed up spatial operations with stored data,
+/// such as intersections, ray casting e.t.c
+/// All coordinates should be positive and integer ([`Unsigned`](num::Unsigned)),
+/// due to applied optimisations.
 #[derive(Default)]
 pub struct Octree<U, T>
 where
     U: Unsigned,
     T: Position<U = U>,
 {
+    /// [`Pool`] of stored elements. Access it by [`ElementId`]
     pub elements: Pool<T>,
+
+    /// [`Pool`] of tree [`Nodes`](crate::node::Node). Access it by [`NodeId`]
     pub nodes: Pool<Node<U>>,
+
+    /// Every element caches its' [`NodeId`].
+    /// Drastically speedup the elements removal.
+    /// Access it by [`ElementId`]
     pub map: Pool<NodeId>,
+
     pub root: NodeId,
 }
 
@@ -24,6 +37,8 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
+    /// Construct a tree from [`Aabb`].
+    /// The root node will adopt aabb's dimensions.
     pub fn from_aabb(aabb: Aabb<U>) -> Self {
         Octree {
             elements: Default::default(),
@@ -33,6 +48,8 @@ where
         }
     }
 
+    /// Construct a tree with capacity for it's pools.
+    /// Helps to reduce the amount of the memory reallocations.
     pub fn with_capacity(capacity: usize) -> Self {
         Octree {
             elements: Pool::<T>::with_capacity(capacity),
@@ -42,6 +59,9 @@ where
         }
     }
 
+    /// Construct a tree from [`Aabb`] and capacity.
+    /// Helps to reduce the amount of the memory reallocations.
+    /// The root node will adopt aabb's dimensions.
     pub fn from_aabb_with_capacity(aabb: Aabb<U>, capacity: usize) -> Self {
         Octree {
             elements: Pool::<T>::with_capacity(capacity),
@@ -51,6 +71,8 @@ where
         }
     }
 
+    /// Insert an element into a tree.
+    /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
     pub fn insert(&mut self, elem: T) -> Result<(), TreeError> {
         let position = elem.position();
         if self.nodes[self.root].aabb.contains(position) {
@@ -152,6 +174,10 @@ where
         Ok(())
     }
 
+    /// Remove an element from the tree.
+    /// Recursively collapse an empty [`nodes`](crate::node::Node).
+    /// No memory deallocaton happening.
+    /// Element is only marked as removed and could be reused.
     pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
         let node = self.map[element];
         let n = &mut self.nodes[node];
@@ -173,6 +199,7 @@ where
         }
     }
 
+    /// Consumes a tree, converting it into a [`vector`](Vec).
     pub fn to_vec(self) -> Vec<T> {
         let garbage = self.elements.garbage;
         self.elements
