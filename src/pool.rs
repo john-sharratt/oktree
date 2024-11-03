@@ -9,6 +9,9 @@ use crate::{
     ElementId, NodeId, Position, TreeError,
 };
 
+/// Pool data structure.
+/// When element is removed no memory deallocation happens.
+/// Removed elements are only marked as deleted and their memory could be reused.  
 pub struct Pool<T> {
     pub(crate) vec: Vec<T>,
     pub(crate) garbage: Vec<usize>,
@@ -44,6 +47,12 @@ impl Default for Pool<NodeId> {
     }
 }
 
+/// Indexing a [`pool`](Pool) of [`nodes`](Node) with [`NodeId`]
+///
+/// ```no_run
+/// let node = &tree.nodes[NodeId(42)];
+/// // let node = &tree.nodes[ElementId(42)]; // Error
+/// ```
 impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
     type Output = Node<U>;
 
@@ -56,6 +65,12 @@ impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
     }
 }
 
+/// Mutable Indexing a [`pool`](Pool) of [`nodes`](Node) with [`NodeId`]
+///
+/// ```no_run
+/// let mut node = &mut tree.nodes[NodeId(42)];
+/// // let mut node = &mut tree.nodes[ElementId(42)]; // Error
+/// ```
 impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
     fn index_mut(&mut self, index: NodeId) -> &mut Self::Output {
         debug_assert!(
@@ -66,6 +81,12 @@ impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
     }
 }
 
+/// Indexing a [`pool`](Pool) of `T: Position` with [`ElementId`]
+///
+/// ```no_run
+/// let element = &tree.element[ElementId(42)];
+/// // let element = &tree.element[NodeId(42)]; // Error
+/// ```
 impl<T: Position> Index<ElementId> for Pool<T> {
     type Output = T;
 
@@ -78,6 +99,12 @@ impl<T: Position> Index<ElementId> for Pool<T> {
     }
 }
 
+/// Mutable Indexing a [`pool`](Pool) of `T: Position` with [`ElementId`]
+///
+/// ```no_run
+/// let mut element = &mut tree.element[ElementId(42)];
+/// // let mut element = &mut tree.element[NodeId(42)]; // Error
+/// ```
 impl<T: Position> IndexMut<ElementId> for Pool<T> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
@@ -88,6 +115,12 @@ impl<T: Position> IndexMut<ElementId> for Pool<T> {
     }
 }
 
+/// Indexing a [`pool`](Pool) of [`node ids`](NodeId) with [`ElementId`]
+///
+/// ```no_run
+/// let node_id = &tree.map[ElementId(42)];
+/// // let node_id = &tree.map[NodeId(42)]; // Error
+/// ```
 impl Index<ElementId> for Pool<NodeId> {
     type Output = NodeId;
 
@@ -100,6 +133,12 @@ impl Index<ElementId> for Pool<NodeId> {
     }
 }
 
+/// Mutable Indexing a [`pool`](Pool) of [`node ids`](NodeId) with [`ElementId`]
+///
+/// ```no_run
+/// let mut node_id = &mut tree.map[ElementId(42)];
+/// // let mut node_id = &mut tree.map[NodeId(42)]; // Error
+/// ```
 impl IndexMut<ElementId> for Pool<NodeId> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
@@ -121,24 +160,37 @@ impl<T> Pool<T> {
         }
     }
 
+    /// Returns the mumber of actual elements.
+    ///
+    /// Elements marked as deleted are not counted.
     pub fn len(&self) -> usize {
         self.vec.len() - self.garbage_len()
     }
 
+    /// Is the pool is empty.
+    ///
+    /// Elements marked as deleted are not counted.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the number of deleted elements.
     pub fn garbage_len(&self) -> usize {
         self.garbage.len()
     }
 
+    /// Returns a [PoolIterator], which iterates over an actual elements.
+    ///
+    /// Elements marked as deleted are skipped.
     pub fn iter(&self) -> PoolIterator<T> {
         PoolIterator::new(self)
     }
 }
 
 impl<U: Unsigned> Pool<Node<U>> {
+    /// Construct a [`Pool`] of [`nodes`](Node) from [`Aabb`].
+    ///
+    /// Node will adopt aabb's dimensions.
     pub(crate) fn from_aabb(aabb: Aabb<U>) -> Self {
         let root = Node::from_aabb(aabb, None);
         let vec = vec![root];
@@ -148,6 +200,9 @@ impl<U: Unsigned> Pool<Node<U>> {
         }
     }
 
+    /// Construct a [`Pool`] of [`nodes`](Node).
+    ///
+    /// Helps to reduce the amount of the memory reallocations.
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         let root = Node::default();
         let mut vec = Vec::with_capacity(capacity);
@@ -159,6 +214,10 @@ impl<U: Unsigned> Pool<Node<U>> {
         }
     }
 
+    /// Construct a [`Pool`] of [`nodes`](Node) from [`Aabb`] with capacity.
+    ///
+    /// Node will adopt aabb's dimensions.
+    /// Helps to reduce the amount of the memory reallocations.
     pub(crate) fn from_aabb_with_capacity(aabb: Aabb<U>, capacity: usize) -> Self {
         let root = Node::from_aabb(aabb, None);
         let mut vec = Vec::with_capacity(capacity);
@@ -342,6 +401,10 @@ impl Pool<NodeId> {
     }
 }
 
+/// Iterator for a [Pool].
+///
+/// Yields only an actual elements.
+/// Elements marked as removed are skipped.
 pub struct PoolIterator<'pool, T> {
     pool: &'pool Pool<T>,
     current: usize,

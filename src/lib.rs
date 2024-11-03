@@ -1,7 +1,7 @@
 //! [![Crates.io](https://img.shields.io/crates/v/oktree.svg)](https://crates.io/crates/oktree)
 //! [![Docs.rs](https://docs.rs/oktree/badge.svg)](https://docs.rs/oktree)
 //!
-//! Fast [`tree`](tree::Octree) implementation.
+//! Fast [`octree`](tree::Octree) implementation.
 //!
 //! ![Example](https://raw.githubusercontent.com/exor2008/oktree/main/assets/example.gif)
 //!
