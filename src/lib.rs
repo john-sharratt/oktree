@@ -7,6 +7,15 @@
 //!
 //! Mainly usable with Bevy game engine for fast processing of voxel data.
 //!
+//! Bevy integration feature if enabled by default and can be disabled by:
+//!
+//! ```
+//! [dependencies]
+//! oktree = { version = "0.1.0", default-features = false }
+//! ```
+//!
+//! Intersection methods are not available without this feature.
+//!
 //! ### Optimizations:
 //!
 //! - `Unsigned` arithmetics, bitwise operations.
