@@ -1,3 +1,5 @@
+//! [Octree] implementation
+
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},

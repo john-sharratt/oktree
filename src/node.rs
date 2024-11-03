@@ -1,3 +1,5 @@
+//! [Node] implementation.
+
 use core::fmt;
 
 use crate::{
@@ -5,6 +7,13 @@ use crate::{
     ElementId, NodeId, TreeError,
 };
 
+/// [Octree's](crate::tree::Octree) node.
+///
+/// Each node has an [Aabb], optional parent node link
+/// and can be one of the following types:
+/// - [NodeType::Empty]. Empty node.
+/// - [NodeType::Leaf]. Node, containig a single [ElementId].
+/// - [NodeType::Branch]. Node, containig a 8 child nodes.
 #[derive(Clone, Copy)]
 pub struct Node<U: Unsigned> {
     pub aabb: Aabb<U>,
@@ -31,6 +40,9 @@ impl<U: Unsigned> Node<U> {
         }
     }
 
+    /// How many non-empty child nodes contained by this
+    ///
+    /// [branch](NodeType::Branch) node.
     pub fn fullness(&self) -> Result<u8, TreeError> {
         match self.ntype {
             NodeType::Branch(Branch { filled, .. }) => Ok(filled),
@@ -42,6 +54,10 @@ impl<U: Unsigned> Node<U> {
     }
 }
 
+/// [Node] types.
+/// - [NodeType::Empty]. Empty node.
+/// - [NodeType::Leaf]. Node, containig a single [ElementId].
+/// - [NodeType::Branch]. Node, containig a 8 child nodes.
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub enum NodeType {
     #[default]
@@ -60,6 +76,9 @@ impl fmt::Display for NodeType {
     }
 }
 
+/// Branch, containig a link to a 8 child [nodes](Node).
+///
+/// Contained by [branch](NodeType::Branch) nodes.
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct Branch {
     pub children: [NodeId; 8],
@@ -87,6 +106,10 @@ impl Branch {
         self.filled = self.filled.strict_sub(1);
     }
 
+    /// Search which octant is suitable for the position.
+    ///
+    /// * `position`: Element's position
+    /// * `center`: center of the current node's [Aabb]
     pub fn find_child<U: Unsigned>(
         &self,
         position: TUVec3<U>,

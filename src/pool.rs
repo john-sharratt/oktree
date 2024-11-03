@@ -1,3 +1,5 @@
+//! [Pool] implementation.
+
 use std::{
     array::from_fn,
     ops::{Index, IndexMut},

@@ -1,3 +1,7 @@
+//! Bounding primitives.
+//!
+//! [TUVec3], [BVec3], [Aabb]
+
 use std::{
     array::from_fn,
     fmt::{Debug, Display},
@@ -9,6 +13,10 @@ use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 pub trait Unsigned =
     Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display + Debug + Default;
 
+/// Tree Unsigned Vec3
+///
+/// Inner typy shuld be any [Unsigned](num::Unsigned):
+/// `u8`, `u16`, `u32`, `u64`, `u128`, `usize`.
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub struct TUVec3<U: Unsigned> {
     pub x: U,
@@ -60,6 +68,7 @@ impl<U: Unsigned> TUVec3<U> {
     }
 }
 
+/// Boolean Vec3 mask.
 #[derive(Default, Clone, Copy, PartialEq)]
 pub struct BVec3 {
     x: bool,
@@ -85,6 +94,10 @@ impl BVec3 {
     }
 }
 
+/// Axis Aligned Bounding Box
+///
+/// Inner typy shuld be any [Unsigned](num::Unsigned):
+/// `u8`, `u16`, `u32`, `u64`, `u128`, `usize`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb<U: Unsigned> {
     pub min: TUVec3<U>,
@@ -148,6 +161,7 @@ impl<U: Unsigned> Aabb<U> {
         }
     }
 
+    /// Checks if the aabb contains a [position](TUVec3).
     pub fn contains(&self, position: TUVec3<U>) -> bool {
         let lemin = self.min.le(position);
         let gtmax = self.max.gt(position);

@@ -1,3 +1,5 @@
+//! Crate's core types reimports.
+
 pub use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::NodeType,

@@ -12,6 +12,8 @@ fn main() -> Result<(), TreeError> {
     tree.insert(c2)?;
 
     let ray = RayCast3d::new(Vec3::new(1.5, 7.0, 1.9), Dir3::NEG_Y, 100.0);
+
+    // Hit!
     assert_eq!(
         tree.ray_cast(&ray),
         HitResult {
@@ -21,6 +23,8 @@ fn main() -> Result<(), TreeError> {
     );
 
     assert_eq!(tree.remove(ElementId(0)), Ok(()));
+
+    // Miss!
     assert_eq!(
         tree.ray_cast(&ray),
         HitResult {

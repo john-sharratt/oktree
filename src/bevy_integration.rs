@@ -1,3 +1,21 @@
+//! [Bevy](https://docs.rs/bevy/) game engine integrations.
+//!
+//! Adds the [Bevy](https://docs.rs/bevy/) game engine as a dependency.
+//!
+//! ### Intersections:
+//! - [ray](RayCast3d) [intersection](Octree::ray_cast)
+//!
+//! ```no_run
+//! let ray = RayCast3d::new(Vec3A::new(7.0, 5.9, 1.01), Dir3A::NEG_X, 10.0);
+//! assert_eq!(
+//!   tree.ray_cast(&ray),
+//!   HitResult {
+//!     element: Some(1.into()),
+//!     distance: 5.0
+//!   }
+//! );
+//! ```
+
 use bevy::math::{
     bounding::{Aabb3d, IntersectsVolume, RayCast3d},
     Vec3, Vec3A,
@@ -16,6 +34,10 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
+    /// Intersects an [Octree] with the [RayCast3d].
+    ///
+    /// Returns a [HitResult] with [ElementId] and the doistance to
+    /// the intersection if any.
     pub fn ray_cast(&self, ray: &RayCast3d) -> HitResult {
         let mut hit = HitResult::default();
         self.recursive_ray_cast(self.root, ray, &mut hit);
@@ -70,6 +92,10 @@ where
     }
 }
 
+/// Intersection result.
+///
+/// Contains `Some(`[ElementId]`)` in case of intersection,
+/// [None] otherwise.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct HitResult {
     pub element: Option<ElementId>,
