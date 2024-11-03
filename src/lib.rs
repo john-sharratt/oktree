@@ -465,7 +465,7 @@ mod tests {
 
             assert_eq!(tree.remove(ElementId(i)), Ok(()));
             assert_eq!(tree.elements.len(), (15 - i) as usize);
-            assert_eq!(tree.elements.vec.len(), 16 as usize);
+            assert_eq!(tree.elements.vec.len(), 16);
             assert_eq!(tree.elements.garbage_len(), (i + 1) as usize);
         }
 

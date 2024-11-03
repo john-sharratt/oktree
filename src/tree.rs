@@ -10,6 +10,7 @@ use crate::{
 use heapless::Vec as HVec;
 
 /// Fast implementation of the octree data structure.
+///
 /// Helps to speed up spatial operations with stored data,
 /// such as intersections, ray casting e.t.c
 /// All coordinates should be positive and integer ([`Unsigned`](num::Unsigned)),
