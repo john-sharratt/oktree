@@ -8,8 +8,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    container: 
-      image: rust:latest
 
     steps:
     - uses: actions/checkout@v4
