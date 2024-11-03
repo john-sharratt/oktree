@@ -19,6 +19,9 @@ jobs:
     
     - name: Check version
       run: test "v$(toml get -r Cargo.toml package.version)" = "${{ github.ref_name }}"
+      
+    - name: Install bevy dependencies
+      run: sudo apt-get install g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0
     
     - name: Publish
       run: cargo publish
