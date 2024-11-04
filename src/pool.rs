@@ -162,7 +162,7 @@ impl<T> Pool<T> {
         }
     }
 
-    /// Returns the mumber of actual elements.
+    /// Returns the number of actual elements.
     ///
     /// Elements marked as deleted are not counted.
     pub fn len(&self) -> usize {

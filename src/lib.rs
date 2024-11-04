@@ -27,11 +27,11 @@
 //!
 //! ## Benchmark
 //!
-//! | Operation        | Quantity | Time   |
-//! | ---------------- | -------- | ------ |
-//! | insertion        | 4096     | 1 ms   |
-//! | removing         | 4096     | 0.3 ms |
-//! | ray intersection | 4096     | 9 ms   |
+//! | Operation        | Quantity                   | Time    |
+//! | ---------------- | -------------------------- | ------- |
+//! | insertion        | 65536 cells                | 25 ms   |
+//! | removing         | 65536 cells                | 11.2 ms |
+//! | ray intersection | 4096 rays with 65536 cells | 33 ms   |
 //!
 //! Run benchmark:
 //!

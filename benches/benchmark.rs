@@ -1,4 +1,4 @@
-use std::{array::from_fn, time::Duration};
+use std::time::Duration;
 
 use bevy::math::{bounding::RayCast3d, Dir3A, Vec3A};
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -6,6 +6,8 @@ use oktree::prelude::*;
 use rand::Rng;
 
 const RANGE: usize = 4096;
+const COUNT: usize = 65536;
+const RAY_COUNT: usize = 4096;
 
 #[derive(Clone, Copy)]
 struct DummyCell<U: Unsigned> {
@@ -25,20 +27,28 @@ impl<U: Unsigned> DummyCell<U> {
     }
 }
 
-fn random_points() -> [DummyCell<usize>; RANGE] {
+fn random_points() -> Vec<DummyCell<usize>> {
+    let mut points = Vec::with_capacity(COUNT);
     let mut rnd = rand::thread_rng();
-    from_fn(|_| {
+
+    for _ in 0..COUNT {
         let x = rnd.gen_range(0..=RANGE);
         let y = rnd.gen_range(0..=RANGE);
         let z = rnd.gen_range(0..=RANGE);
         let position = TUVec3::new(x, y, z);
-        DummyCell::new(position)
-    })
+        let cell = DummyCell::new(position);
+
+        points.push(cell);
+    }
+
+    points
 }
 
-fn random_rays() -> [RayCast3d; RANGE] {
+fn random_rays() -> Vec<RayCast3d> {
+    let mut rays = Vec::with_capacity(RAY_COUNT);
     let mut rnd = rand::thread_rng();
-    from_fn(|_| {
+
+    for _ in 0..RAY_COUNT {
         let x = rnd.gen_range(0.0..=RANGE as f32);
         let y = rnd.gen_range(0.0..=RANGE as f32);
         let z = rnd.gen_range(0.0..=RANGE as f32);
@@ -50,22 +60,25 @@ fn random_rays() -> [RayCast3d; RANGE] {
         let direction = Vec3A::new(x_dir, y_dir, z_dir);
         let direction = Dir3A::new(direction).unwrap();
 
-        RayCast3d::new(origin, direction, RANGE as f32)
-    })
+        let ray = RayCast3d::new(origin, direction, RANGE as f32);
+        rays.push(ray);
+    }
+
+    rays
 }
 
-fn octree_insert(points: &[DummyCell<usize>; RANGE]) {
+fn octree_insert(points: &[DummyCell<usize>]) {
     let mut tree =
-        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), RANGE);
+        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), COUNT);
 
     for p in points {
         let _ = tree.insert(*p);
     }
 }
 
-fn octree_remove(points: &[DummyCell<usize>; RANGE]) {
+fn octree_remove(points: &[DummyCell<usize>]) {
     let mut tree =
-        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), RANGE);
+        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), COUNT);
 
     for p in points {
         let _ = tree.insert(*p);
@@ -76,9 +89,9 @@ fn octree_remove(points: &[DummyCell<usize>; RANGE]) {
     }
 }
 
-fn octree_intersection(points: &[DummyCell<usize>; RANGE], rays: &[RayCast3d; RANGE]) {
+fn octree_intersection(points: &[DummyCell<usize>], rays: &[RayCast3d]) {
     let mut tree =
-        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), RANGE);
+        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), COUNT);
 
     for p in points {
         let _ = tree.insert(*p);
