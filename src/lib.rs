@@ -382,17 +382,23 @@ mod tests {
         let c5 = DummyCell::new(TUVec3::new(6, 7, 1));
         assert_eq!(tree.insert(c5), Ok(ElementId(4)));
 
+        assert_eq!(tree.get_node(ElementId(0)), Some(NodeId(9)));
+
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
         assert_eq!(tree.nodes[1.into()].fullness(), Ok(2));
         assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
 
         assert_eq!(tree.remove(0.into()), Ok(()));
 
+        assert_eq!(tree.get_node(ElementId(0)), None);
+
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(1.into()));
         assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
 
         assert_eq!(tree.remove(1.into()), Ok(()));
+
+        assert_eq!(tree.get_node(ElementId(1)), None);
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);

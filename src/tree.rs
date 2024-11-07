@@ -206,6 +206,15 @@ where
         }
     }
 
+    /// Returns the node's [id](NodeId) containing the element if element exists and not garbaged.
+    pub fn get_node(&self, element: ElementId) -> Option<NodeId> {
+        if self.map.is_garbaged(element) {
+            None
+        } else {
+            Some(self.map[element])
+        }
+    }
+
     /// Consumes a tree, converting it into a [`vector`](Vec).
     pub fn to_vec(self) -> Vec<T> {
         let garbage = self.elements.garbage;

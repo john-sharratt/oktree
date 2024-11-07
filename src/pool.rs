@@ -319,6 +319,10 @@ impl<U: Unsigned> Pool<Node<U>> {
     pub fn get_mut_unchecked(&mut self, node: NodeId) -> &mut Node<U> {
         &mut self.vec[node.0 as usize]
     }
+
+    pub fn is_garbaged(&self, node: NodeId) -> bool {
+        self.garbage.contains(&(node.0 as usize))
+    }
 }
 
 impl<T: Position> Pool<T> {
@@ -360,6 +364,10 @@ impl<T: Position> Pool<T> {
     pub fn get_mut_unchecked(&mut self, element: ElementId) -> &mut T {
         &mut self.vec[element.0 as usize]
     }
+
+    pub fn is_garbaged(&self, element: ElementId) -> bool {
+        self.garbage.contains(&(element.into()))
+    }
 }
 
 impl Pool<NodeId> {
@@ -400,6 +408,10 @@ impl Pool<NodeId> {
 
     pub fn get_mut_unchecked(&mut self, element: ElementId) -> &mut NodeId {
         &mut self.vec[element.0 as usize]
+    }
+
+    pub fn is_garbaged(&self, element: ElementId) -> bool {
+        self.garbage.contains(&(element.into()))
     }
 }
 
