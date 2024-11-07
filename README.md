@@ -33,11 +33,12 @@ Compensation for the inconvenience is perfomance.
 
 ## Benchmark
 
-| Operation        | Quantity                   | Time    |
-| ---------------- | -------------------------- | ------- |
-| insertion        | 65536 cells                | 25 ms   |
-| removing         | 65536 cells                | 11.2 ms |
-| ray intersection | 4096 rays with 65536 cells | 33 ms   |
+| Operation        | Quantity                   | Time  |
+| ---------------- | -------------------------- | ----- |
+| insertion        | 65536 cells                | 25 ms |
+| removing         | 65536 cells                | 12 ms |
+| find             | 65536 cells                | 13 ms |
+| ray intersection | 4096 rays with 65536 cells | 33 ms |
 
 Run benchmark:
 

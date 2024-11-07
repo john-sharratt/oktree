@@ -89,6 +89,19 @@ fn octree_remove(points: &[DummyCell<usize>]) {
     }
 }
 
+fn octree_find(points: &[DummyCell<usize>]) {
+    let mut tree =
+        Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), COUNT);
+
+    for p in points {
+        let _ = tree.insert(*p);
+    }
+
+    for p in points {
+        let _ = tree.find(p.position);
+    }
+}
+
 fn octree_intersection(points: &[DummyCell<usize>], rays: &[RayCast3d]) {
     let mut tree =
         Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2), COUNT);
@@ -111,6 +124,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("octree insert", |b| b.iter(|| octree_insert(&points)));
 
     group.bench_function("octree remove", |b| b.iter(|| octree_remove(&points)));
+
+    group.bench_function("octree find", |b| b.iter(|| octree_find(&points)));
 
     group.bench_function("octree intersection", |b| {
         b.iter(|| octree_intersection(&points, &rays))
