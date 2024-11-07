@@ -7,13 +7,17 @@ Fast octree implementation.
 
 ![Example](/assets/example.gif)
 
-Mainly usable with Bevy game engine for fast processing of voxel data.
+Could be used with the Bevy game engine for fast processing of voxel data or as a standalone tree.
 
-Bevy integration feature if enabled by default and can be disabled by:
+Bevy feature enables intersection methods:
+
+- ray intersection
+
+To enable bevy integrations:
 
 ```
 [dependencies]
-oktree = { version = "0.1.0", default-features = false }
+oktree = { version = "0.1.0", features = ["bevy"] }
 ```
 
 Intersection methods are not available without this feature.
@@ -38,7 +42,7 @@ Compensation for the inconvenience is perfomance.
 Run benchmark:
 
 ```
-cargo bench
+cargo bench --all-features
 ```
 
 ## Example
@@ -63,7 +67,7 @@ fn main() -> Result<(), TreeError> {
     let c1_id = tree.insert(c1)?;
     let c2_id = tree.insert(c2)?;
 
-    // Searching by point
+    // Searching by position
     assert_eq!(tree.find(TUVec3::new(1, 1, 1)), Some(c1_id));
     assert_eq!(tree.find(TUVec3::new(8, 8, 8)), Some(c2_id));
     assert_eq!(tree.find(TUVec3::new(1, 2, 8)), None);
@@ -115,5 +119,5 @@ impl DummyCell {
 Run bevy visual example:
 
 ```
-cargo run --release --example bevy_tree
+cargo run --release --example bevy_tree --all-features
 ```

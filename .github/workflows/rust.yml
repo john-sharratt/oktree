@@ -25,13 +25,13 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-        args: --all-targets -- -D warnings
+        args: --all-targets --all-features -- -D warnings
 
     - name: Run Tests
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --all-targets --release
+        args: --all-targets --all-features --release
 
     - name: Install toml-cli
       run: cargo install toml-cli
