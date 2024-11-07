@@ -58,10 +58,19 @@
 //!     let c1 = DummyCell::new(TUVec3::splat(1u8));
 //!     let c2 = DummyCell::new(TUVec3::splat(8u8));
 //!
-//!     tree.insert(c1)?;
-//!     tree.insert(c2)?;
+//!     let c1_id = tree.insert(c1)?;
+//!     let c2_id = tree.insert(c2)?;
 //!
+//!     // Searching by point
+//!     assert_eq!(tree.find(TUVec3::new(1, 1, 1)), Some(c1_id));
+//!     assert_eq!(tree.find(TUVec3::new(8, 8, 8)), Some(c2_id));
+//!     assert_eq!(tree.find(TUVec3::new(1, 2, 8)), None);
+//!     assert_eq!(tree.find(TUVec3::splat(100)), None);
+//!
+//!     // Searching for the ray intersection
 //!     let ray = RayCast3d::new(Vec3::new(1.5, 7.0, 1.9), Dir3::NEG_Y, 100.0);
+//!
+//!     // Hit!
 //!     assert_eq!(
 //!         tree.ray_cast(&ray),
 //!         HitResult {
@@ -71,6 +80,8 @@
 //!     );
 //!
 //!     assert_eq!(tree.remove(ElementId(0)), Ok(()));
+//!
+//!     // Miss!
 //!     assert_eq!(
 //!         tree.ray_cast(&ray),
 //!         HitResult {
@@ -435,16 +446,21 @@ mod tests {
 
         for _ in 0..RANGE {
             let p = random_point();
-            let _ = tree.insert(p);
+            let pos = p.position;
+            if let Ok(e) = tree.insert(p) {
+                assert_eq!(tree.find(pos), Some(e));
+            }
         }
 
         assert!(tree.elements.len() > (RANGE as f32 * 0.98) as usize);
         assert!(tree.map.len() > (RANGE as f32 * 0.98) as usize);
 
         for element in 0..tree.elements.len() {
-            if let Err(err) = tree.remove(element.into()) {
-                println!("{err} || {}", tree.elements[element.into()].position());
-            }
+            let e = ElementId(element as u32);
+            let pos = tree.elements[e].position;
+            assert_eq!(tree.find(pos), Some(e));
+            assert_eq!(tree.remove(element.into()), Ok(()));
+            assert_eq!(tree.find(pos), None);
         }
 
         assert_eq!(tree.elements.len(), 0);

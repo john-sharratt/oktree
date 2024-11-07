@@ -167,7 +167,7 @@ where
 
             NodeType::Branch(branch) => {
                 let center = self.nodes[node].aabb.center();
-                let child: NodeId = branch.find_child(position, center)?;
+                let child: NodeId = branch.find_child(position, center);
                 unsafe {
                     insertions.push_unchecked(Insertion {
                         element,
@@ -203,6 +203,45 @@ where
                 "Attemt to remove element from {}",
                 n.ntype
             ))),
+        }
+    }
+
+    /// Search for the element at the [point](TUVec3)
+    ///
+    /// Returns element's [id](ElementId) or [None] if elements if not found.
+    ///
+    /// ```no_run
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// tree.insert(c1).unwrap();
+    ///
+    /// let c2 = DummyCell::new(TUVec3::new(4, 5, 6));
+    /// let eid = tree.insert(c2).unwrap();
+    ///
+    /// assert_eq!(tree.find(TUVec3::new(4, 5, 6)), Some(eid));
+    /// assert_eq!(tree.find(TUVec3::new(2, 2, 2)), None);
+    /// ```
+    pub fn find(&self, point: TUVec3<U>) -> Option<ElementId> {
+        self.rfind(self.root, point)
+    }
+
+    fn rfind(&self, node: NodeId, point: TUVec3<U>) -> Option<ElementId> {
+        let ntype = self.nodes[node].ntype;
+        match ntype {
+            NodeType::Empty => None,
+
+            NodeType::Leaf(e) => {
+                if self.elements[e].position() == point {
+                    Some(e)
+                } else {
+                    None
+                }
+            }
+
+            NodeType::Branch(ref branch) => {
+                let child = branch.find_child(point, self.nodes[node].aabb.center());
+                self.rfind(child, point)
+            }
         }
     }
 

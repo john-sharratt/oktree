@@ -110,17 +110,13 @@ impl Branch {
     ///
     /// * `position`: Element's position
     /// * `center`: center of the current node's [Aabb]
-    pub fn find_child<U: Unsigned>(
-        &self,
-        position: TUVec3<U>,
-        center: TUVec3<U>,
-    ) -> Result<NodeId, TreeError> {
+    pub fn find_child<U: Unsigned>(&self, position: TUVec3<U>, center: TUVec3<U>) -> NodeId {
         let x = if position.x < center.x { 0 } else { 1 };
         let y = if position.y < center.y { 0 } else { 1 };
         let z = if position.z < center.z { 0 } else { 1 };
 
         let idx = x | y << 1 | z << 2;
 
-        Ok(self.children[idx])
+        self.children[idx]
     }
 }
