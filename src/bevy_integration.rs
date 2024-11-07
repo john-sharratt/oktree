@@ -164,10 +164,10 @@ mod tests {
         let mut tree = Octree::from_aabb(Aabb::new(TUVec3::new(4u16, 4, 4), 4));
 
         let c1 = DummyCell::new(TUVec3::new(3, 1, 1));
-        assert_eq!(tree.insert(c1), Ok(()));
+        assert_eq!(tree.insert(c1), Ok(ElementId(0)));
 
         let c2 = DummyCell::new(TUVec3::new(1, 5, 1));
-        assert_eq!(tree.insert(c2), Ok(()));
+        assert_eq!(tree.insert(c2), Ok(ElementId(1)));
 
         // hit 2nd
         let ray = RayCast3d::new(Vec3A::new(1.5, 1.5, 1.5), Dir3A::Y, 10.0);

@@ -75,8 +75,10 @@ where
     }
 
     /// Insert an element into a tree.
+    ///
     /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
-    pub fn insert(&mut self, elem: T) -> Result<(), TreeError> {
+    /// Returns inserted element's [id](ElementId)
+    pub fn insert(&mut self, elem: T) -> Result<ElementId, TreeError> {
         let position = elem.position();
         if self.nodes[self.root].aabb.contains(position) {
             let element = self.elements.insert(elem);
@@ -101,7 +103,8 @@ where
                     }
                 }
             }
-            Ok(())
+
+            Ok(element)
         } else {
             Err(TreeError::OutOfTreeBounds(format!(
                 "{position} is outside of aabb: min: {} max: {}",
@@ -174,6 +177,7 @@ where
                 }
             }
         }
+
         Ok(())
     }
 
