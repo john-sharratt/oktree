@@ -17,7 +17,7 @@
 //! ```
 
 use bevy::math::{
-    bounding::{Aabb3d, IntersectsVolume, RayCast3d},
+    bounding::{Aabb3d, BoundingSphere, IntersectsVolume, RayCast3d},
     Vec3, Vec3A,
 };
 use num::cast;
@@ -128,6 +128,30 @@ impl<U: Unsigned> From<TUVec3<U>> for Vec3 {
             cast(value.y).unwrap(),
             cast(value.z).unwrap(),
         )
+    }
+}
+
+impl<U, T> IntersectsVolume<Aabb3d> for Octree<U, T>
+where
+    U: Unsigned,
+    T: Position<U = U>,
+{
+    /// Check if a [Aabb3d] volume intersects with the [Octree] root node.
+    fn intersects(&self, volume: &Aabb3d) -> bool {
+        let aabb: Aabb3d = self.nodes[self.root].aabb.into();
+        volume.intersects(&aabb)
+    }
+}
+
+impl<U, T> IntersectsVolume<BoundingSphere> for Octree<U, T>
+where
+    U: Unsigned,
+    T: Position<U = U>,
+{
+    /// Check if a [BoundingSphere] volume intersects with the [Octree] root node.
+    fn intersects(&self, volume: &BoundingSphere) -> bool {
+        let aabb: Aabb3d = self.nodes[self.root].aabb.into();
+        volume.intersects(&aabb)
     }
 }
 
