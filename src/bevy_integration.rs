@@ -81,8 +81,8 @@ where
         }
     }
 
-    fn intersect<Volume: IntersectsVolume<Aabb3d>>(&self, volume: &Volume) -> Vec<ElementId> {
-        let mut elements = vec![];
+    pub fn intersect<Volume: IntersectsVolume<Aabb3d>>(&self, volume: &Volume) -> Vec<ElementId> {
+        let mut elements = Vec::with_capacity(10);
         self.rintersect(self.root, volume, &mut elements);
         elements
     }

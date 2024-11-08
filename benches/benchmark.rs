@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use bevy::math::{bounding::RayCast3d, Dir3A, Vec3A};
+use bevy::math::{
+    bounding::{Aabb3d, BoundingSphere, RayCast3d},
+    Dir3A, Vec3A,
+};
 use criterion::{criterion_group, criterion_main, Criterion};
 use oktree::prelude::*;
 use rand::Rng;
@@ -8,6 +11,7 @@ use rand::Rng;
 const RANGE: usize = 4096;
 const COUNT: usize = 65536;
 const RAY_COUNT: usize = 4096;
+const VOLUME_COUNT: usize = 16;
 
 #[derive(Clone, Copy)]
 struct DummyCell<U: Unsigned> {
@@ -67,6 +71,48 @@ fn random_rays() -> Vec<RayCast3d> {
     rays
 }
 
+fn random_spheres() -> Vec<BoundingSphere> {
+    let mut spheres = Vec::with_capacity(VOLUME_COUNT);
+    let mut rnd = rand::thread_rng();
+
+    for _ in 0..VOLUME_COUNT {
+        let x = rnd.gen_range(0.0..=RANGE as f32);
+        let y = rnd.gen_range(0.0..=RANGE as f32);
+        let z = rnd.gen_range(0.0..=RANGE as f32);
+        let position = Vec3A::new(x, y, z);
+        let radius = rnd.gen_range(0.0..RANGE as f32);
+        let sphere = BoundingSphere::new(position, radius);
+
+        spheres.push(sphere);
+    }
+
+    spheres
+}
+
+fn random_aabbs() -> Vec<Aabb3d> {
+    let mut aabbs = Vec::with_capacity(VOLUME_COUNT);
+    let mut rnd = rand::thread_rng();
+
+    for _ in 0..VOLUME_COUNT {
+        let x = rnd.gen_range(0.0..=RANGE as f32);
+        let y = rnd.gen_range(0.0..=RANGE as f32);
+        let z = rnd.gen_range(0.0..=RANGE as f32);
+
+        let x_size = rnd.gen_range(0.0..=RANGE as f32);
+        let y_size = rnd.gen_range(0.0..=RANGE as f32);
+        let z_size = rnd.gen_range(0.0..=RANGE as f32);
+
+        let position = Vec3A::new(x, y, z);
+        let size = Vec3A::new(x_size, y_size, z_size);
+
+        let aabb = Aabb3d::new(position, size);
+
+        aabbs.push(aabb);
+    }
+
+    aabbs
+}
+
 fn octree_insert(points: &[DummyCell<usize>]) {
     let mut tree = Octree::from_aabb_with_capacity(
         Aabb::new_unchecked(TUVec3::splat(RANGE / 2), RANGE / 2),
@@ -108,7 +154,7 @@ fn octree_find(points: &[DummyCell<usize>]) {
     }
 }
 
-fn octree_intersection(points: &[DummyCell<usize>], rays: &[RayCast3d]) {
+fn octree_ray_cast(points: &[DummyCell<usize>], rays: &[RayCast3d]) {
     let mut tree = Octree::from_aabb_with_capacity(
         Aabb::new_unchecked(TUVec3::splat(RANGE / 2), RANGE / 2),
         COUNT,
@@ -123,11 +169,43 @@ fn octree_intersection(points: &[DummyCell<usize>], rays: &[RayCast3d]) {
     }
 }
 
+fn octree_sphere_intersect(points: &[DummyCell<usize>], spheres: &[BoundingSphere]) {
+    let mut tree = Octree::from_aabb_with_capacity(
+        Aabb::new_unchecked(TUVec3::splat(RANGE / 2), RANGE / 2),
+        COUNT,
+    );
+
+    for p in points {
+        let _ = tree.insert(*p);
+    }
+
+    for sphere in spheres {
+        let _ = tree.intersect(sphere);
+    }
+}
+
+fn octree_aabb_intersect(points: &[DummyCell<usize>], aabbs: &[Aabb3d]) {
+    let mut tree = Octree::from_aabb_with_capacity(
+        Aabb::new_unchecked(TUVec3::splat(RANGE / 2), RANGE / 2),
+        COUNT,
+    );
+
+    for p in points {
+        let _ = tree.insert(*p);
+    }
+
+    for aabb in aabbs {
+        let _ = tree.intersect(aabb);
+    }
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("main");
     group.measurement_time(Duration::from_secs(10));
     let points = random_points();
     let rays = random_rays();
+    let spheres = random_spheres();
+    let aabbs = random_aabbs();
 
     group.bench_function("octree insert", |b| b.iter(|| octree_insert(&points)));
 
@@ -135,8 +213,16 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     group.bench_function("octree find", |b| b.iter(|| octree_find(&points)));
 
-    group.bench_function("octree intersection", |b| {
-        b.iter(|| octree_intersection(&points, &rays))
+    group.bench_function("octree ray cast", |b| {
+        b.iter(|| octree_ray_cast(&points, &rays))
+    });
+
+    group.bench_function("octree sphere intersect", |b| {
+        b.iter(|| octree_sphere_intersect(&points, &spheres))
+    });
+
+    group.bench_function("octree aabb intersect", |b| {
+        b.iter(|| octree_aabb_intersect(&points, &aabbs))
     });
 }
 

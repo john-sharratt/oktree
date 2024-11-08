@@ -89,10 +89,7 @@ impl<U: Unsigned> TUVec3<U> {
             self.y + cast(1).unwrap(),
             self.z + cast(1).unwrap(),
         );
-        Aabb {
-            min: *self,
-            max: max,
-        }
+        Aabb { min: *self, max }
     }
 }
 
