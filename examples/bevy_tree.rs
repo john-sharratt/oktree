@@ -17,7 +17,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.insert_resource(Tree(Octree::from_aabb(Aabb::new(
+    commands.insert_resource(Tree(Octree::from_aabb(Aabb::new_unchecked(
         TUVec3::splat(SIZE / 2),
         SIZE / 2,
     ))));

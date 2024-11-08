@@ -5,13 +5,22 @@
 use std::{
     array::from_fn,
     fmt::{Debug, Display},
-    ops::Shr,
+    ops::{BitAnd, Shr},
 };
 
 use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 
-pub trait Unsigned =
-    Integer + NumUnsigned + NumCast + Shr<Self, Output = Self> + Copy + Display + Debug + Default;
+use crate::TreeError;
+
+pub trait Unsigned = Integer
+    + NumUnsigned
+    + NumCast
+    + Shr<Self, Output = Self>
+    + BitAnd<Self, Output = Self>
+    + Copy
+    + Display
+    + Debug
+    + Default;
 
 /// Tree Unsigned Vec3
 ///
@@ -66,6 +75,12 @@ impl<U: Unsigned> TUVec3<U> {
     pub fn ge(&self, other: Self) -> BVec3 {
         BVec3::new(self.x >= other.y, self.y >= other.y, self.z >= other.z)
     }
+
+    #[inline]
+    /// Checks if [Aabb] creted from this [TUVec3] and `half_size` will have all dimensions positive.
+    pub fn is_positive_aabb(&self, half_size: U) -> bool {
+        self.x >= half_size && self.y >= half_size && self.z >= half_size
+    }
 }
 
 /// Boolean Vec3 mask.
@@ -96,7 +111,8 @@ impl BVec3 {
 
 /// Axis Aligned Bounding Box
 ///
-/// Inner typy shuld be any [Unsigned](num::Unsigned):
+/// Resulting Aabb should be positive and it's dimensions should be the power of 2.
+/// Inner type shuld be any [Unsigned](num::Unsigned):
 /// `u8`, `u16`, `u32`, `u64`, `u128`, `usize`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb<U: Unsigned> {
@@ -114,7 +130,8 @@ impl<U: Unsigned> Default for Aabb<U> {
 }
 
 impl<U: Unsigned> Aabb<U> {
-    pub fn new(center: TUVec3<U>, half_size: U) -> Self {
+    /// Creates a new [Aabb] object without any checks
+    pub fn new_unchecked(center: TUVec3<U>, half_size: U) -> Self {
         Aabb {
             min: TUVec3::new(
                 center.x - half_size,
@@ -126,6 +143,22 @@ impl<U: Unsigned> Aabb<U> {
                 center.y + half_size,
                 center.z + half_size,
             ),
+        }
+    }
+
+    /// Creates a new [Aabb] object
+    ///
+    /// Checks that it's dimensions are positive
+    /// and are powers of 2.
+    pub fn new(center: TUVec3<U>, half_size: U) -> Result<Self, TreeError> {
+        if !center.is_positive_aabb(half_size) {
+            Err(TreeError::NotPositive(
+                "Center: {center}, half size: {half_size}".into(),
+            ))
+        } else if !is_power2(half_size) {
+            Err(TreeError::NotPower2("half size: {half_size}".into()))
+        } else {
+            Ok(Self::new_unchecked(center, half_size))
         }
     }
 
@@ -178,13 +211,32 @@ impl<U: Unsigned> Aabb<U> {
     }
 }
 
+/// Check if `half_size` is the power of 2.
+///
+/// Used in [aabb creation](Aabb::new) checks.
+pub fn is_power2<U: Unsigned>(mut half_size: U) -> bool {
+    if half_size < cast(2).unwrap() {
+        return false;
+    }
+
+    while half_size > cast(1).unwrap() {
+        if half_size & cast(0b1).unwrap() != cast(0).unwrap() {
+            return false;
+        }
+
+        half_size = half_size >> cast(1).unwrap();
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Aabb, TUVec3};
+    use super::{is_power2, Aabb, TUVec3};
 
     #[test]
     fn test_aabb_contains() {
-        let aabb = Aabb::new(TUVec3::new(8, 8, 8), 8u16);
+        let aabb = Aabb::new_unchecked(TUVec3::new(8, 8, 8), 8u16);
         assert!(aabb.contains(TUVec3::zero()));
 
         assert!(aabb.contains(TUVec3::new(8, 8, 8)));
@@ -192,5 +244,31 @@ mod tests {
         assert!(!aabb.contains(TUVec3::new(16, 16, 16)));
 
         assert!(!aabb.contains(TUVec3::new(0, 16, 8)));
+    }
+
+    #[test]
+    fn test_ispower2() {
+        assert!(!is_power2(0u32));
+        assert!(!is_power2(1u32));
+        assert!(is_power2(2u8));
+        assert!(!is_power2(3u32));
+        assert!(is_power2(4u16));
+        assert!(!is_power2(5u16));
+        assert!(is_power2(8u8));
+        assert!(!is_power2(1023usize));
+        assert!(is_power2(1024usize));
+        assert!(!is_power2(1025usize));
+    }
+
+    #[test]
+    fn test_aabb_constructor() {
+        // Ok
+        assert!(Aabb::new(TUVec3::splat(2u8), 2).is_ok());
+
+        // Negative dimensions
+        assert!(Aabb::new(TUVec3::splat(16u16), 64).is_err());
+
+        // 7 is not the power of 2
+        assert!(Aabb::new(TUVec3::splat(16u16), 7).is_err());
     }
 }

@@ -58,7 +58,7 @@
 //!
 //! fn main() -> Result<(), TreeError> {
 //!     let aabb = Aabb::new(TUVec3::splat(16), 16u8);
-//!     let mut tree = Octree::from_aabb_with_capacity(aabb, 10);
+//!     let mut tree = Octree::from_aabb_with_capacity(aabb?, 10);
 //!
 //!     let c1 = DummyCell::new(TUVec3::splat(1u8));
 //!     let c2 = DummyCell::new(TUVec3::splat(8u8));
@@ -219,6 +219,10 @@ pub enum TreeError {
 
     /// Attempt to split a [`Node`](node::Node) with size of 1.
     SplitUnit(String),
+
+    NotPositive(String),
+
+    NotPower2(String),
 }
 
 impl Error for TreeError {}
@@ -231,6 +235,12 @@ impl fmt::Display for TreeError {
             TreeError::NotLeaf(info) => write!(f, "Node is not a Leaf. {info}"),
             TreeError::CollapseNonEmpty(info) => write!(f, "Collapsing non empty branch. {info}"),
             TreeError::SplitUnit(info) => write!(f, "Splitting AABB with size of 1. {info}"),
+            TreeError::NotPositive(info) => {
+                write!(f, "All AABB dimensions should be positive. {info}")
+            }
+            TreeError::NotPower2(info) => {
+                write!(f, "All AABB dimensions should be the power of 2. {info}")
+            }
         }
     }
 }
@@ -271,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_insert() {
-        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::new(4, 4, 4), 4));
+        let mut tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::new(4, 4, 4), 4));
 
         assert_eq!(tree.elements.len(), 0);
         assert_eq!(tree.elements.garbage_len(), 0);
@@ -339,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_remove() {
-        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::new(8u16, 8, 8), 8));
+        let mut tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::new(8u16, 8, 8), 8));
 
         let c1 = DummyCell::new(TUVec3::new(1, 1, 1));
         assert_eq!(tree.insert(c1), Ok(ElementId(0)));
@@ -381,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_insert_remove() {
-        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::new(4u8, 4, 4), 4));
+        let mut tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::new(4u8, 4, 4), 4));
 
         let c1 = DummyCell::new(TUVec3::new(1, 1, 1));
         assert_eq!(tree.insert(c1), Ok(ElementId(0)));
@@ -447,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_65536() {
-        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(RANGE / 2), RANGE / 2));
+        let mut tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::splat(RANGE / 2), RANGE / 2));
 
         for _ in 0..RANGE {
             let p = random_point();
@@ -475,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_iterator() {
-        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+        let mut tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::splat(16), 16));
 
         for i in 0..16u32 {
             assert_eq!(
@@ -554,7 +564,7 @@ mod tests {
 
     #[test]
     fn test_to_vec() {
-        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+        let mut tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::splat(16), 16));
         assert_eq!(
             tree.insert(DummyCell::new(TUVec3::splat(1u8))),
             Ok(ElementId(0))

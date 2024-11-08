@@ -41,6 +41,8 @@ where
     T: Position<U = U>,
 {
     /// Construct a tree from [`Aabb`].
+    ///
+    /// `aabb` should be positive and it's dimensions should be the power of 2.
     /// The root node will adopt aabb's dimensions.
     pub fn from_aabb(aabb: Aabb<U>) -> Self {
         Octree {
@@ -52,6 +54,7 @@ where
     }
 
     /// Construct a tree with capacity for it's pools.
+    ///
     /// Helps to reduce the amount of the memory reallocations.
     pub fn with_capacity(capacity: usize) -> Self {
         Octree {
@@ -63,6 +66,8 @@ where
     }
 
     /// Construct a tree from [`Aabb`] and capacity.
+    ///
+    /// `aabb` should be positive and it's dimensions should be the power of 2.
     /// Helps to reduce the amount of the memory reallocations.
     /// The root node will adopt aabb's dimensions.
     pub fn from_aabb_with_capacity(aabb: Aabb<U>, capacity: usize) -> Self {

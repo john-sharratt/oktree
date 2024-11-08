@@ -161,7 +161,9 @@ mod tests {
 
     #[test]
     fn test_ray_intersection() {
-        let mut tree = Octree::from_aabb(Aabb::new(TUVec3::new(4u16, 4, 4), 4));
+        let aabb = Aabb::new(TUVec3::new(4u16, 4, 4), 4);
+        assert!(aabb.is_ok());
+        let mut tree = Octree::from_aabb(aabb.unwrap());
 
         let c1 = DummyCell::new(TUVec3::new(3, 1, 1));
         assert_eq!(tree.insert(c1), Ok(ElementId(0)));

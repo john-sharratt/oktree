@@ -60,7 +60,7 @@ use oktree::prelude::*;
 
 fn main() -> Result<(), TreeError> {
     let aabb = Aabb::new(TUVec3::splat(16), 16u8);
-    let mut tree = Octree::from_aabb_with_capacity(aabb, 10);
+    let mut tree = Octree::from_aabb_with_capacity(aabb?, 10);
 
     let c1 = DummyCell::new(TUVec3::splat(1u8));
     let c2 = DummyCell::new(TUVec3::splat(8u8));
