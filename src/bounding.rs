@@ -81,6 +81,19 @@ impl<U: Unsigned> TUVec3<U> {
     pub fn is_positive_aabb(&self, half_size: U) -> bool {
         self.x >= half_size && self.y >= half_size && self.z >= half_size
     }
+
+    /// Creates [Aabb] with size of 1 from current [TUVec3].
+    pub fn unit_aabb(&self) -> Aabb<U> {
+        let max = TUVec3::new(
+            self.x + cast(1).unwrap(),
+            self.y + cast(1).unwrap(),
+            self.z + cast(1).unwrap(),
+        );
+        Aabb {
+            min: *self,
+            max: max,
+        }
+    }
 }
 
 /// Boolean Vec3 mask.

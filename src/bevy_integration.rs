@@ -54,22 +54,10 @@ where
         let aabb: Aabb3d = n.aabb.into();
         if ray.intersects(&aabb) {
             match n.ntype {
-                NodeType::Branch(Branch { children, .. }) => {
-                    children.map(|child| self.recursive_ray_cast(child, ray, hit));
-                }
+                NodeType::Empty => (),
 
                 NodeType::Leaf(element) => {
-                    let min = self.elements[element].position();
-                    let max = TUVec3::new(
-                        min.x + cast(1).unwrap(),
-                        min.y + cast(1).unwrap(),
-                        min.z + cast(1).unwrap(),
-                    );
-                    let aabb = Aabb3d {
-                        min: min.into(),
-                        max: max.into(),
-                    };
-
+                    let aabb = self.elements[element].position().unit_aabb().into();
                     if let Some(dist) = ray.aabb_intersection_at(&aabb) {
                         match hit.element {
                             Some(_) => {
@@ -86,7 +74,42 @@ where
                     }
                 }
 
-                NodeType::Empty => (),
+                NodeType::Branch(Branch { children, .. }) => {
+                    children.map(|child| self.recursive_ray_cast(child, ray, hit));
+                }
+            }
+        }
+    }
+
+    fn intersect<Volume: IntersectsVolume<Aabb3d>>(&self, volume: &Volume) -> Vec<ElementId> {
+        let mut elements = vec![];
+        self.rintersect(self.root, volume, &mut elements);
+        elements
+    }
+
+    fn rintersect<Volume: IntersectsVolume<Aabb3d>>(
+        &self,
+        node: NodeId,
+        volume: &Volume,
+        elements: &mut Vec<ElementId>,
+    ) {
+        let n = self.nodes[node];
+        match n.ntype {
+            NodeType::Empty => (),
+
+            NodeType::Leaf(e) => {
+                let aabb = self.elements[e].position().unit_aabb().into();
+                if volume.intersects(&aabb) {
+                    elements.push(e);
+                };
+            }
+
+            NodeType::Branch(Branch { children, .. }) => {
+                let aabb: Aabb3d = n.aabb.into();
+
+                if volume.intersects(&aabb) {
+                    children.map(|child| self.rintersect(child, volume, elements));
+                }
             }
         }
     }
@@ -152,6 +175,33 @@ where
     fn intersects(&self, volume: &BoundingSphere) -> bool {
         let aabb: Aabb3d = self.nodes[self.root].aabb.into();
         volume.intersects(&aabb)
+    }
+}
+
+trait IntersectVolume<Volume, T>
+where
+    Volume: IntersectsVolume<Aabb3d>,
+{
+    fn intersect(&self, volume: &Volume) -> Vec<ElementId>;
+}
+
+impl<U, T> IntersectVolume<Aabb3d, T> for Octree<U, T>
+where
+    U: Unsigned,
+    T: Position<U = U>,
+{
+    fn intersect(&self, volume: &Aabb3d) -> Vec<ElementId> {
+        self.intersect(volume)
+    }
+}
+
+impl<U, T> IntersectVolume<BoundingSphere, T> for Octree<U, T>
+where
+    U: Unsigned,
+    T: Position<U = U>,
+{
+    fn intersect(&self, volume: &BoundingSphere) -> Vec<ElementId> {
+        self.intersect(volume)
     }
 }
 
@@ -264,5 +314,83 @@ mod tests {
                 distance: 8.0
             }
         );
+    }
+
+    #[test]
+    fn intersects_volume() {
+        let aabb = Aabb::new_unchecked(TUVec3::splat(16u16), 16);
+        let mut tree = Octree::from_aabb(aabb);
+
+        let c1 = DummyCell::new(TUVec3::new(3, 1, 1));
+        assert_eq!(tree.insert(c1), Ok(ElementId(0)));
+
+        let box1 = Aabb3d::new(Vec3::splat(8.0), Vec3::splat(8.0));
+        assert!(tree.intersects(&box1));
+
+        let box2 = Aabb3d::new(Vec3::splat(16.0), Vec3::splat(16.0));
+        assert!(tree.intersects(&box2));
+
+        let box3 = Aabb3d::new(Vec3::splat(16.0), Vec3::new(1.0, 1.0, 50.0));
+        assert!(tree.intersects(&box3));
+
+        let box5 = Aabb3d::new(Vec3::splat(50.0), Vec3::new(1.0, 1.0, 1.0));
+        assert!(!tree.intersects(&box5));
+
+        let sphere1 = BoundingSphere::new(Vec3::splat(16.0), 16.0);
+        assert!(tree.intersects(&sphere1));
+
+        let sphere2 = BoundingSphere::new(Vec3::splat(40.0), 8.0);
+        assert!(!tree.intersects(&sphere2));
+
+        let sphere3 = BoundingSphere::new(Vec3::new(40.0, 16.0, 16.0), 8.0);
+        assert!(tree.intersects(&sphere3));
+
+        let sphere4 = BoundingSphere::new(Vec3::new(40.01, 16.0, 16.0), 8.0);
+        assert!(!tree.intersects(&sphere4));
+
+        let sphere5 = BoundingSphere::new(Vec3::new(40.0, 16.0, 16.0), 8.01);
+        assert!(tree.intersects(&sphere5));
+
+        let sphere6 = BoundingSphere::new(Vec3::new(39.99, 16.0, 16.0), 8.0);
+        assert!(tree.intersects(&sphere6));
+    }
+
+    #[test]
+    fn intersect_volume() {
+        let aabb = Aabb::new_unchecked(TUVec3::splat(16u16), 16);
+        let mut tree = Octree::from_aabb(aabb);
+
+        let c1 = DummyCell::new(TUVec3::new(3, 1, 1));
+        assert_eq!(tree.insert(c1), Ok(ElementId(0)));
+
+        let c2 = DummyCell::new(TUVec3::new(1, 5, 1));
+        assert_eq!(tree.insert(c2), Ok(ElementId(1)));
+
+        let c3 = DummyCell::new(TUVec3::new(1, 1, 7));
+        assert_eq!(tree.insert(c3), Ok(ElementId(2)));
+
+        let box1 = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(10.0));
+        assert_eq!(
+            tree.intersect(&box1),
+            vec![ElementId(0), ElementId(1), ElementId(2)]
+        );
+
+        let box2 = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
+        assert_eq!(tree.intersect(&box2), vec![ElementId(0), ElementId(1)]);
+
+        let box3 = Aabb3d::new(Vec3::new(10.0, 0.0, 10.0), Vec3::splat(5.0));
+        assert_eq!(tree.intersect(&box3), vec![]);
+
+        let sphere1 = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 10.0);
+        assert_eq!(
+            tree.intersect(&sphere1),
+            vec![ElementId(0), ElementId(1), ElementId(2)]
+        );
+
+        let sphere2 = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 6.0);
+        assert_eq!(tree.intersect(&sphere2), vec![ElementId(0), ElementId(1)]);
+
+        let sphere3 = BoundingSphere::new(Vec3::new(10.0, 0.0, 10.0), 5.0);
+        assert_eq!(tree.intersect(&sphere3), vec![]);
     }
 }
