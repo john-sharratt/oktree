@@ -13,15 +13,14 @@ Could be used with the Bevy game engine for fast processing of voxel data or as 
 
 - #### Unsigned operations
 
-  - `Insertion`
-  - `Removing`
-  - `Searching`
+  - [`Insertion`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.insert)
+  - [`Removing`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.remove)
+  - [`Searching`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.find)
 
 - #### Floating point operations (Bevy integration)
 
-  - `Ray casting`
-  - `Bouning sphere intersection`
-  - `Bouning box intersection`
+  - [`Ray casting`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.ray_cast)
+  - [`Bouning sphere and bounding box intersection`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.intersect)
 
 To enable bevy integrations:
 
@@ -150,3 +149,5 @@ Run bevy visual example:
 ```
 cargo run --release --example bevy_tree --all-features
 ```
+
+Feature and pull requests are welcomed.
