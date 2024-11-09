@@ -82,7 +82,15 @@ where
     /// Insert an element into a tree.
     ///
     /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
-    /// Returns inserted element's [id](ElementId)
+    /// Returns inserted element's [`id`](ElementId)
+    ///
+    /// ```no_run
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// assert_eq!(c1_id, ElementId(0))
+    /// ```
     pub fn insert(&mut self, elem: T) -> Result<ElementId, TreeError> {
         let position = elem.position();
         if self.nodes[self.root].aabb.contains(position) {
@@ -187,9 +195,18 @@ where
     }
 
     /// Remove an element from the tree.
+    ///
     /// Recursively collapse an empty [`nodes`](crate::node::Node).
     /// No memory deallocaton happening.
     /// Element is only marked as removed and could be reused.
+    ///
+    /// ```no_run
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// assert_eq!(tree.remove(c1_id).is_ok())
+    /// ```
     pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
         let node = self.map[element];
         let n = &mut self.nodes[node];
@@ -211,9 +228,9 @@ where
         }
     }
 
-    /// Search for the element at the [point](TUVec3)
+    /// Search for the element at the [`point`](TUVec3)
     ///
-    /// Returns element's [id](ElementId) or [None] if elements if not found.
+    /// Returns element's [`id`](ElementId) or [`None`] if elements if not found.
     ///
     /// ```no_run
     /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
@@ -250,7 +267,7 @@ where
         }
     }
 
-    /// Returns the node's [id](NodeId) containing the element if element exists and not garbaged.
+    /// Returns the node's [`id`](NodeId) containing the element if element exists and not garbaged.
     pub fn get_node(&self, element: ElementId) -> Option<NodeId> {
         if self.map.is_garbaged(element) {
             None

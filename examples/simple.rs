@@ -1,4 +1,7 @@
-use bevy::math::{bounding::RayCast3d, Dir3, Vec3};
+use bevy::math::{
+    bounding::{Aabb3d, BoundingSphere, RayCast3d},
+    Dir3, Vec3,
+};
 use oktree::prelude::*;
 
 fn main() -> Result<(), TreeError> {
@@ -39,6 +42,18 @@ fn main() -> Result<(), TreeError> {
             distance: 0.0
         }
     );
+
+    let c1 = DummyCell::new(TUVec3::splat(1u8));
+    let c1_id = tree.insert(c1)?;
+
+    // Aabb intersection
+    let aabb = Aabb3d::new(Vec3::splat(2.0), Vec3::splat(2.0));
+    assert_eq!(tree.intersect(&aabb), vec![c1_id]);
+
+    // Sphere intersection
+    let sphere = BoundingSphere::new(Vec3::splat(2.0), 2.0);
+    assert_eq!(tree.intersect(&sphere), vec![c1_id]);
+
     Ok(())
 }
 

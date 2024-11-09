@@ -11,7 +11,7 @@ use rand::Rng;
 const RANGE: usize = 4096;
 const COUNT: usize = 65536;
 const RAY_COUNT: usize = 4096;
-const VOLUME_COUNT: usize = 16;
+const VOLUME_SIZE: f32 = 100.0;
 
 #[derive(Clone, Copy)]
 struct DummyCell<U: Unsigned> {
@@ -72,15 +72,15 @@ fn random_rays() -> Vec<RayCast3d> {
 }
 
 fn random_spheres() -> Vec<BoundingSphere> {
-    let mut spheres = Vec::with_capacity(VOLUME_COUNT);
+    let mut spheres = Vec::with_capacity(RAY_COUNT);
     let mut rnd = rand::thread_rng();
 
-    for _ in 0..VOLUME_COUNT {
+    for _ in 0..RAY_COUNT {
         let x = rnd.gen_range(0.0..=RANGE as f32);
         let y = rnd.gen_range(0.0..=RANGE as f32);
         let z = rnd.gen_range(0.0..=RANGE as f32);
         let position = Vec3A::new(x, y, z);
-        let radius = rnd.gen_range(0.0..RANGE as f32);
+        let radius = rnd.gen_range(0.0..VOLUME_SIZE);
         let sphere = BoundingSphere::new(position, radius);
 
         spheres.push(sphere);
@@ -90,17 +90,17 @@ fn random_spheres() -> Vec<BoundingSphere> {
 }
 
 fn random_aabbs() -> Vec<Aabb3d> {
-    let mut aabbs = Vec::with_capacity(VOLUME_COUNT);
+    let mut aabbs = Vec::with_capacity(RAY_COUNT);
     let mut rnd = rand::thread_rng();
 
-    for _ in 0..VOLUME_COUNT {
+    for _ in 0..RAY_COUNT {
         let x = rnd.gen_range(0.0..=RANGE as f32);
         let y = rnd.gen_range(0.0..=RANGE as f32);
         let z = rnd.gen_range(0.0..=RANGE as f32);
 
-        let x_size = rnd.gen_range(0.0..=RANGE as f32);
-        let y_size = rnd.gen_range(0.0..=RANGE as f32);
-        let z_size = rnd.gen_range(0.0..=RANGE as f32);
+        let x_size = rnd.gen_range(0.0..=VOLUME_SIZE);
+        let y_size = rnd.gen_range(0.0..=VOLUME_SIZE);
+        let z_size = rnd.gen_range(0.0..=VOLUME_SIZE);
 
         let position = Vec3A::new(x, y, z);
         let size = Vec3A::new(x_size, y_size, z_size);

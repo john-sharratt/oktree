@@ -9,18 +9,26 @@ Fast octree implementation.
 
 Could be used with the Bevy game engine for fast processing of voxel data or as a standalone tree.
 
-Bevy feature enables intersection methods:
+### Available methods:
 
-- ray intersection
+- #### Unsigned operations
+
+  - `Insertion`
+  - `Removing`
+  - `Searching`
+
+- #### Floating point operations (Bevy integration)
+
+  - `Ray casting`
+  - `Bouning sphere intersection`
+  - `Bouning box intersection`
 
 To enable bevy integrations:
 
 ```
 [dependencies]
-oktree = { version = "0.1.0", features = ["bevy"] }
+oktree = { version = "0.2.0", features = ["bevy"] }
 ```
-
-Intersection methods are not available without this feature.
 
 ### Optimizations:
 
@@ -33,14 +41,16 @@ Compensation for the inconvenience is perfomance.
 
 ## Benchmark
 
-| Operation           | Quantity                      | Time  |
-| ------------------- | ----------------------------- | ----- |
-| insertion           | 65536 cells                   | 25 ms |
-| removing            | 65536 cells                   | 12 ms |
-| find                | 65536 searches in 65536 cells | 13 ms |
-| ray intersection    | 4096 rays with 65536 cells    | 33 ms |
-| sphere intersection | 16 spheres with 65536 cells   | 45 ms |
-| box intersection    | 16 boxes with 65536 cells     | 41 ms |
+Octree dimensions: `4096x4096x4096`
+
+| Operation           | Quantity                         | Time  |
+| ------------------- | -------------------------------- | ----- |
+| insertion           | 65536 cells                      | 25 ms |
+| removing            | 65536 cells                      | 12 ms |
+| find                | 65536 searches in 65536 cells    | 13 ms |
+| ray intersection    | 4096 rays against 65536 cells    | 35 ms |
+| sphere intersection | 4096 spheres against 65536 cells | 8 ms  |
+| box intersection    | 4096 boxes against 65536 cells   | 6 ms  |
 
 Run benchmark:
 
@@ -57,7 +67,11 @@ It must be any `Unsigned` type (`u8`, `u16`, `u32`, `u64`, `u128` or `usize`).
 Implement `Position` for the handled type, so that it can return it's spatial coordinates.
 
 ```rust
-use bevy::math::{bounding::RayCast3d, Dir3, Vec3};
+use bevy::math::{
+    bounding::{Aabb3d, BoundingSphere, RayCast3d},
+    Dir3, Vec3,
+};
+
 use oktree::prelude::*;
 
 fn main() -> Result<(), TreeError> {
@@ -98,6 +112,18 @@ fn main() -> Result<(), TreeError> {
             distance: 0.0
         }
     );
+
+    let c1 = DummyCell::new(TUVec3::splat(1u8));
+    let c1_id = tree.insert(c1)?;
+
+    // Aabb intersection
+    let aabb = Aabb3d::new(Vec3::splat(2.0), Vec3::splat(2.0));
+    assert_eq!(tree.intersect(&aabb), vec![c1_id]);
+
+    // Sphere intersection
+    let sphere = BoundingSphere::new(Vec3::splat(2.0), 2.0);
+    assert_eq!(tree.intersect(&sphere), vec![c1_id]);
+
     Ok(())
 }
 

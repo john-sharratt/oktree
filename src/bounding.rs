@@ -1,6 +1,6 @@
 //! Bounding primitives.
 //!
-//! [TUVec3], [BVec3], [Aabb]
+//! [`TUVec3`], [`BVec3`], [`Aabb`]
 
 use std::{
     array::from_fn,
@@ -24,7 +24,7 @@ pub trait Unsigned = Integer
 
 /// Tree Unsigned Vec3
 ///
-/// Inner typy shuld be any [Unsigned](num::Unsigned):
+/// Inner typy shuld be any [`Unsigned`](num::Unsigned):
 /// `u8`, `u16`, `u32`, `u64`, `u128`, `usize`.
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub struct TUVec3<U: Unsigned> {
@@ -77,12 +77,12 @@ impl<U: Unsigned> TUVec3<U> {
     }
 
     #[inline]
-    /// Checks if [Aabb] creted from this [TUVec3] and `half_size` will have all dimensions positive.
+    /// Checks if [`Aabb`] creted from this [`TUVec3`] and `half_size` will have all dimensions positive.
     pub fn is_positive_aabb(&self, half_size: U) -> bool {
         self.x >= half_size && self.y >= half_size && self.z >= half_size
     }
 
-    /// Creates [Aabb] with size of 1 from current [TUVec3].
+    /// Creates [`Aabb`] with size of 1 from current [`TUVec3`].
     pub fn unit_aabb(&self) -> Aabb<U> {
         let max = TUVec3::new(
             self.x + cast(1).unwrap(),
@@ -122,7 +122,7 @@ impl BVec3 {
 /// Axis Aligned Bounding Box
 ///
 /// Resulting Aabb should be positive and it's dimensions should be the power of 2.
-/// Inner type shuld be any [Unsigned](num::Unsigned):
+/// Inner type shuld be any [`Unsigned`](num::Unsigned):
 /// `u8`, `u16`, `u32`, `u64`, `u128`, `usize`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb<U: Unsigned> {
@@ -156,7 +156,7 @@ impl<U: Unsigned> Aabb<U> {
         }
     }
 
-    /// Creates a new [Aabb] object
+    /// Creates a new [`Aabb`] object
     ///
     /// Checks that it's dimensions are positive
     /// and are powers of 2.
@@ -204,7 +204,7 @@ impl<U: Unsigned> Aabb<U> {
         }
     }
 
-    /// Checks if the aabb contains a [position](TUVec3).
+    /// Checks if the aabb contains a [`position`](TUVec3).
     pub fn contains(&self, position: TUVec3<U>) -> bool {
         let lemin = self.min.le(position);
         let gtmax = self.max.gt(position);
@@ -223,7 +223,7 @@ impl<U: Unsigned> Aabb<U> {
 
 /// Check if `half_size` is the power of 2.
 ///
-/// Used in [aabb creation](Aabb::new) checks.
+/// Used in [`aabb creation`](Aabb::new) checks.
 pub fn is_power2<U: Unsigned>(mut half_size: U) -> bool {
     if half_size < cast(2).unwrap() {
         return false;

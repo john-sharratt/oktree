@@ -3,7 +3,7 @@
 //! Adds the [Bevy](https://docs.rs/bevy/) game engine as a dependency.
 //!
 //! ### Intersections:
-//! - [ray](RayCast3d) [intersection](Octree::ray_cast)
+//! - [`ray`](RayCast3d) [intersection](Octree::ray_cast)
 //!
 //! ```no_run
 //! let ray = RayCast3d::new(Vec3A::new(7.0, 5.9, 1.01), Dir3A::NEG_X, 10.0);
@@ -14,6 +14,23 @@
 //!     distance: 5.0
 //!   }
 //! );
+//! ```
+//!
+//! - [`Sphere`](BoundingSphere) [intersection](Octree::intersect)
+//!
+//! ```no_run
+//! let sphere = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 10.0);
+//! assert_eq!(
+//!   tree.intersect(&sphere),
+//!   vec![ElementId(0), ElementId(1), ElementId(2)]
+//! );
+//! ```
+//!
+//! - [`Aabb`](Aabb3d) [intersection](Octree::intersect)
+//!
+//! ```no_run
+//! let aabb = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
+//! assert_eq!(tree.intersect(&aabb), vec![ElementId(0), ElementId(1)]);
 //! ```
 
 use bevy::math::{
@@ -34,10 +51,27 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
-    /// Intersects an [Octree] with the [RayCast3d].
+    /// Intersects an [`Octree`] with the [`RayCast3d`].
     ///
-    /// Returns a [HitResult] with [ElementId] and the doistance to
+    /// Returns a [`HitResult`] with [`ElementId`] and the doistance to
     /// the intersection if any.
+    ///
+    /// ```no_run
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    ///
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// let ray = RayCast3d::new(Vec3A::new(5.0, 1.5, 1.5), Dir3A::NEG_X, 10.0);
+    ///
+    /// assert_eq!(
+    ///     tree.ray_cast(&ray),
+    ///     HitResult {
+    ///         element: Some(c1_id),
+    ///         distance: 4.0
+    ///     }
+    /// )
+    /// ```
     pub fn ray_cast(&self, ray: &RayCast3d) -> HitResult {
         let mut hit = HitResult::default();
         self.recursive_ray_cast(self.root, ray, &mut hit);
@@ -81,6 +115,25 @@ where
         }
     }
 
+    /// Intersect [`Octree`] with [`Aabb3d`] or [`BoundingSphere`].
+    ///
+    /// Returns the [`vector`](Vec) of [`elements`](ElementId),
+    /// intersected by volume.
+    ///
+    /// ```no_run
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    ///
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// // Bounding box intersection
+    /// let aabb = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
+    /// assert_eq!(tree.intersect(&aabb), vec![c1_id]);
+    ///
+    /// // Bounding sphere intersection
+    /// let sphere = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 6.0);
+    /// assert_eq!(tree.intersect(&sphere), vec![c1_id]);
+    /// ```
     pub fn intersect<Volume: IntersectsVolume<Aabb3d>>(&self, volume: &Volume) -> Vec<ElementId> {
         let mut elements = Vec::with_capacity(10);
         self.rintersect(self.root, volume, &mut elements);
@@ -115,9 +168,9 @@ where
     }
 }
 
-/// Intersection result.
+/// Ray intersection result.
 ///
-/// Contains `Some(`[ElementId]`)` in case of intersection,
+/// Contains `Some(`[`ElementId`]`)` in case of intersection,
 /// [None] otherwise.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct HitResult {
@@ -159,7 +212,7 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
-    /// Check if a [Aabb3d] volume intersects with the [Octree] root node.
+    /// Check if a [`Aabb3d`] volume intersects with the [`Octree`] root node.
     fn intersects(&self, volume: &Aabb3d) -> bool {
         let aabb: Aabb3d = self.nodes[self.root].aabb.into();
         volume.intersects(&aabb)
@@ -171,7 +224,7 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
-    /// Check if a [BoundingSphere] volume intersects with the [Octree] root node.
+    /// Check if a [`BoundingSphere`] volume intersects with the [`Octree`] root node.
     fn intersects(&self, volume: &BoundingSphere) -> bool {
         let aabb: Aabb3d = self.nodes[self.root].aabb.into();
         volume.intersects(&aabb)

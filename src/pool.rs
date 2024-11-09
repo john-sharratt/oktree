@@ -1,4 +1,4 @@
-//! [Pool] implementation.
+//! [`Pool`] implementation.
 
 use std::{
     array::from_fn,
@@ -11,7 +11,8 @@ use crate::{
     ElementId, NodeId, Position, TreeError,
 };
 
-/// Pool data structure.
+/// [`Pool`] data structure.
+///
 /// When element is removed no memory deallocation happens.
 /// Removed elements are only marked as deleted and their memory could be reused.  
 pub struct Pool<T> {
@@ -181,7 +182,7 @@ impl<T> Pool<T> {
         self.garbage.len()
     }
 
-    /// Returns a [PoolIterator], which iterates over an actual elements.
+    /// Returns a [`PoolIterator`], which iterates over an actual elements.
     ///
     /// Elements marked as deleted are skipped.
     pub fn iter(&self) -> PoolIterator<T> {
@@ -415,7 +416,7 @@ impl Pool<NodeId> {
     }
 }
 
-/// Iterator for a [Pool].
+/// Iterator for a [`Pool`].
 ///
 /// Yields only an actual elements.
 /// Elements marked as removed are skipped.
