@@ -194,6 +194,28 @@ where
         Ok(())
     }
 
+    /// Upserts an element into a tree.
+    ///
+    /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
+    /// Returns inserted element's [`id`](ElementId)
+    ///
+    /// ```no_run
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    ///
+    /// let c1_id = tree.upsert(c1).unwrap();
+    /// assert_eq!(c1_id, ElementId(0))
+    /// 
+    /// let c1_id = tree.upsert(c1).unwrap();
+    /// assert_eq!(c1_id, ElementId(1))
+    /// ```
+    pub fn upsert(&mut self, elem: T) -> Result<ElementId, TreeError> {
+        if let Some(existing) = self.find(elem.position()) {
+            self.remove(existing)?;
+        }
+        self.insert(elem)
+    }
+
     /// Remove an element from the tree.
     ///
     /// Recursively collapse an empty [`nodes`](crate::node::Node).
@@ -226,6 +248,17 @@ where
                 n.ntype
             ))),
         }
+    }
+
+    /// Clear all the elements in the octree and reset it to the initial state.
+    /// 
+    /// The capacity of the octree is preserved and thus the octree can be immediately
+    /// reused for new elements without causing any memory reallocations.
+    pub fn clear(&mut self) {
+        self.elements.clear();
+        self.map.clear();
+        self.nodes.clear();
+        self.root = Default::default();
     }
 
     /// Search for the element at the [`point`](TUVec3)

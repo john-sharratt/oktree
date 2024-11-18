@@ -163,6 +163,12 @@ impl<T> Pool<T> {
         }
     }
 
+    /// Clears all the items in the pool
+    pub fn clear(&mut self) {
+        self.vec.clear();
+        self.garbage.clear();
+    }
+
     /// Returns the number of actual elements.
     ///
     /// Elements marked as deleted are not counted.
