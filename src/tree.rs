@@ -22,17 +22,17 @@ where
     T: Position<U = U>,
 {
     /// [`Pool`] of stored elements. Access it by [`ElementId`]
-    pub elements: Pool<T>,
+    pub(crate) elements: Pool<T>,
 
     /// [`Pool`] of tree [`Nodes`](crate::node::Node). Access it by [`NodeId`]
-    pub nodes: Pool<Node<U>>,
+    pub(crate) nodes: Pool<Node<U>>,
 
     /// Every element caches its' [`NodeId`].
     /// Drastically speedup the elements removal.
     /// Access it by [`ElementId`]
-    pub map: Pool<NodeId>,
+    pub(crate) map: Pool<NodeId>,
 
-    pub root: NodeId,
+    pub(crate) root: NodeId,
 }
 
 impl<U, T> Octree<U, T>
