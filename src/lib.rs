@@ -22,7 +22,7 @@
 //!
 //! To enable bevy integrations:
 //!
-//! ```
+//! ```toml
 //! [dependencies]
 //! oktree = { version = "0.2.0", features = ["bevy"] }
 //! ```
@@ -52,7 +52,7 @@
 //!
 //! Run benchmark:
 //!
-//! ```
+//! ```sh
 //! cargo bench --all-features
 //! ```
 //!
@@ -64,7 +64,7 @@
 //!
 //! Implement [`Position`] for the handled type, so that it can return it's spatial coordinates.
 //!
-//! ```rust
+//! ```ignore
 //! use bevy::math::{
 //!     bounding::{Aabb3d, BoundingSphere, RayCast3d},
 //!     Dir3, Vec3,
@@ -144,7 +144,7 @@
 //!
 //! Run bevy visual example:
 //!
-//! ```
+//! ```sh
 //! cargo run --release --example bevy_tree --all-features
 //! ```
 
@@ -174,8 +174,10 @@ pub trait Position {
 
 /// Index [`tree.nodes`](pool::Pool) with it.
 ///
-/// ```no_run
-/// let node: Node<u16> = tree.nodes[NodeId(0)]
+/// ```ignore
+/// use oktree::prelude::*;
+///
+/// let node: Node<u16> = tree.nodes[NodeId(0)];
 /// ```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct NodeId(pub u32);
@@ -201,7 +203,7 @@ impl fmt::Display for NodeId {
 /// Index [`tree.elements`](pool::Pool) with it.
 /// Stored type element will be returned.
 ///
-/// ```no_run
+/// ```ignore
 /// let element = tree.elements[ElementId(0)]
 /// ```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]

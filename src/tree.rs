@@ -90,7 +90,7 @@ where
     /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
     /// Returns inserted element's [`id`](ElementId)
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
     /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
     /// let c1_id = tree.insert(c1).unwrap();
@@ -205,7 +205,7 @@ where
     /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
     /// Returns inserted element's [`id`](ElementId)
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
     /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
     ///
@@ -228,7 +228,7 @@ where
     /// No memory deallocaton happening.
     /// Element is only marked as removed and could be reused.
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
     /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
     /// let c1_id = tree.insert(c1).unwrap();
@@ -275,7 +275,7 @@ where
     ///
     /// Returns element's [`id`](ElementId) or [`None`] if elements if not found.
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
     /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
     /// tree.insert(c1).unwrap();

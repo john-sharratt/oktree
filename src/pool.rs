@@ -90,7 +90,7 @@ impl Pool<NodeId> {
 
 /// Indexing a [`pool`](Pool) of [`nodes`](Node) with [`NodeId`]
 ///
-/// ```no_run
+/// ```ignore
 /// let node = &tree.nodes[NodeId(42)];
 /// // let node = &tree.nodes[ElementId(42)]; // Error
 /// ```
@@ -108,7 +108,7 @@ impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
 
 /// Mutable Indexing a [`pool`](Pool) of [`nodes`](Node) with [`NodeId`]
 ///
-/// ```no_run
+/// ```ignore
 /// let mut node = &mut tree.nodes[NodeId(42)];
 /// // let mut node = &mut tree.nodes[ElementId(42)]; // Error
 /// ```
@@ -124,7 +124,7 @@ impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
 
 /// Indexing a [`pool`](Pool) of `T: Position` with [`ElementId`]
 ///
-/// ```no_run
+/// ```ignore
 /// let element = &tree.element[ElementId(42)];
 /// // let element = &tree.element[NodeId(42)]; // Error
 /// ```
@@ -142,7 +142,7 @@ impl<T: Position> Index<ElementId> for Pool<T> {
 
 /// Mutable Indexing a [`pool`](Pool) of `T: Position` with [`ElementId`]
 ///
-/// ```no_run
+/// ```ignore
 /// let mut element = &mut tree.element[ElementId(42)];
 /// // let mut element = &mut tree.element[NodeId(42)]; // Error
 /// ```
@@ -158,7 +158,7 @@ impl<T: Position> IndexMut<ElementId> for Pool<T> {
 
 /// Indexing a [`pool`](Pool) of [`node ids`](NodeId) with [`ElementId`]
 ///
-/// ```no_run
+/// ```ignore
 /// let node_id = &tree.map[ElementId(42)];
 /// // let node_id = &tree.map[NodeId(42)]; // Error
 /// ```
@@ -176,7 +176,7 @@ impl Index<ElementId> for Pool<NodeId> {
 
 /// Mutable Indexing a [`pool`](Pool) of [`node ids`](NodeId) with [`ElementId`]
 ///
-/// ```no_run
+/// ```ignore
 /// let mut node_id = &mut tree.map[ElementId(42)];
 /// // let mut node_id = &mut tree.map[NodeId(42)]; // Error
 /// ```

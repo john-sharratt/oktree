@@ -24,7 +24,7 @@ Could be used with the Bevy game engine for fast processing of voxel data or as 
 
 To enable bevy integrations:
 
-```
+```toml
 [dependencies]
 oktree = { version = "0.2.0", features = ["bevy"] }
 ```

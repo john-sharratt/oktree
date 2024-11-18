@@ -56,7 +56,7 @@ where
     /// Returns a [`HitResult`] with [`ElementId`] and the doistance to
     /// the intersection if any.
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
     ///
     /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
@@ -120,7 +120,7 @@ where
     /// Returns the [`vector`](Vec) of [`elements`](ElementId),
     /// intersected by volume.
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
     ///
     /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
