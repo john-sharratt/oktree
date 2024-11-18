@@ -2,6 +2,7 @@
 
 use std::{
     array::from_fn,
+    collections::HashSet,
     ops::{Index, IndexMut},
 };
 
@@ -17,7 +18,8 @@ use crate::{
 /// Removed elements are only marked as deleted and their memory could be reused.  
 pub struct Pool<T> {
     pub(crate) vec: Vec<T>,
-    pub(crate) garbage: Vec<usize>,
+    pub(crate) recycled: Vec<usize>,
+    pub(crate) garbage: HashSet<usize>,
 }
 
 impl<U: Unsigned> Default for Pool<Node<U>> {
@@ -27,6 +29,7 @@ impl<U: Unsigned> Default for Pool<Node<U>> {
 
         Pool {
             vec,
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -36,6 +39,7 @@ impl<U: Unsigned> Pool<Node<U>> {
     pub fn clear(&mut self) {
         self.vec.clear();
         self.vec.push(Node::default());
+        self.recycled.clear();
         self.garbage.clear();
     }
 
@@ -43,6 +47,7 @@ impl<U: Unsigned> Pool<Node<U>> {
     pub fn clear_with_aabb(&mut self, aabb: Aabb<U>) {
         self.vec.clear();
         self.vec.push(Node::from_aabb(aabb, None));
+        self.recycled.clear();
         self.garbage.clear();
     }
 }
@@ -51,6 +56,7 @@ impl<T: Position> Default for Pool<T> {
     fn default() -> Self {
         Pool {
             vec: Default::default(),
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -59,6 +65,7 @@ impl<T: Position> Pool<T> {
     /// Clears all the items in the pool
     pub fn clear(&mut self) {
         self.vec.clear();
+        self.recycled.clear();
         self.garbage.clear();
     }
 }
@@ -67,6 +74,7 @@ impl Default for Pool<NodeId> {
     fn default() -> Self {
         Pool {
             vec: Default::default(),
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -75,6 +83,7 @@ impl Pool<NodeId> {
     /// Clears all the items in the pool
     pub fn clear(&mut self) {
         self.vec.clear();
+        self.recycled.clear();
         self.garbage.clear();
     }
 }
@@ -183,7 +192,8 @@ impl IndexMut<ElementId> for Pool<NodeId> {
 
 impl<T> Pool<T> {
     fn _insert(&mut self, t: T) -> usize {
-        if let Some(idx) = self.garbage.pop() {
+        if let Some(idx) = self.recycled.pop() {
+            self.garbage.remove(&idx);
             self.vec[idx] = t;
             idx
         } else {
@@ -208,7 +218,7 @@ impl<T> Pool<T> {
 
     /// Returns the number of deleted elements.
     pub fn garbage_len(&self) -> usize {
-        self.garbage.len()
+        self.recycled.len()
     }
 
     /// Returns a [`PoolIterator`], which iterates over an actual elements.
@@ -228,6 +238,7 @@ impl<U: Unsigned> Pool<Node<U>> {
         let vec = vec![root];
         Pool {
             vec,
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -242,6 +253,7 @@ impl<U: Unsigned> Pool<Node<U>> {
 
         Pool {
             vec,
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -257,6 +269,7 @@ impl<U: Unsigned> Pool<Node<U>> {
 
         Pool {
             vec,
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -266,7 +279,9 @@ impl<U: Unsigned> Pool<Node<U>> {
     }
 
     pub(crate) fn remove(&mut self, node: NodeId) {
-        self.garbage.push(node.into());
+        let index: usize = node.into();
+        self.recycled.push(index);
+        self.garbage.insert(index);
     }
 
     pub(crate) fn branch(&mut self, parent: NodeId) -> [NodeId; 8] {
@@ -359,6 +374,7 @@ impl<T: Position> Pool<T> {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Pool {
             vec: Vec::with_capacity(capacity),
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -368,7 +384,9 @@ impl<T: Position> Pool<T> {
     }
 
     pub(crate) fn remove(&mut self, element: ElementId) {
-        self.garbage.push(element.into());
+        let index: usize = element.into();
+        self.recycled.push(index);
+        self.garbage.insert(index);
     }
 
     pub fn get(&self, element: ElementId) -> Option<&T> {
@@ -400,7 +418,7 @@ impl<T: Position> Pool<T> {
     }
 
     pub fn has_garbage(&self) -> bool {
-        !self.garbage.is_empty()
+        !self.recycled.is_empty()
     }
 }
 
@@ -408,6 +426,7 @@ impl Pool<NodeId> {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Pool {
             vec: Vec::with_capacity(capacity),
+            recycled: Default::default(),
             garbage: Default::default(),
         }
     }
@@ -417,7 +436,9 @@ impl Pool<NodeId> {
     }
 
     pub(crate) fn remove(&mut self, element: ElementId) {
-        self.garbage.push(element.into());
+        let index: usize = element.into();
+        self.recycled.push(index);
+        self.garbage.insert(index);
     }
 
     pub fn get(&self, element: ElementId) -> Option<&NodeId> {
