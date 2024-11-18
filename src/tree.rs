@@ -21,6 +21,9 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
+    /// aabb used for clearing the octree
+    aabb: Option<Aabb<U>>,
+
     /// [`Pool`] of stored elements. Access it by [`ElementId`]
     pub(crate) elements: Pool<T>,
 
@@ -46,6 +49,7 @@ where
     /// The root node will adopt aabb's dimensions.
     pub fn from_aabb(aabb: Aabb<U>) -> Self {
         Octree {
+            aabb: Some(aabb),
             elements: Default::default(),
             nodes: Pool::from_aabb(aabb),
             map: Default::default(),
@@ -58,6 +62,7 @@ where
     /// Helps to reduce the amount of the memory reallocations.
     pub fn with_capacity(capacity: usize) -> Self {
         Octree {
+            aabb: None,
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::with_capacity(capacity),
             map: Pool::<NodeId>::with_capacity(capacity),
@@ -72,6 +77,7 @@ where
     /// The root node will adopt aabb's dimensions.
     pub fn from_aabb_with_capacity(aabb: Aabb<U>, capacity: usize) -> Self {
         Octree {
+            aabb: Some(aabb),
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::from_aabb_with_capacity(aabb, capacity),
             map: Pool::<NodeId>::with_capacity(capacity),
@@ -257,7 +263,11 @@ where
     pub fn clear(&mut self) {
         self.elements.clear();
         self.map.clear();
-        self.nodes.clear();
+        if let Some(aabb) = self.aabb {
+            self.nodes.clear_with_aabb(aabb);
+        } else {
+            self.nodes.clear();
+        }
         self.root = Default::default();
     }
 

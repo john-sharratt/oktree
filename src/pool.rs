@@ -31,6 +31,21 @@ impl<U: Unsigned> Default for Pool<Node<U>> {
         }
     }
 }
+impl<U: Unsigned> Pool<Node<U>> {
+    /// Clears all the items in the pool
+    pub fn clear(&mut self) {
+        self.vec.clear();
+        self.vec.push(Node::default());
+        self.garbage.clear();
+    }
+
+    /// Clears all the items in the pool and initiates it with an aabb.
+    pub fn clear_with_aabb(&mut self, aabb: Aabb<U>) {
+        self.vec.clear();
+        self.vec.push(Node::from_aabb(aabb, None));
+        self.garbage.clear();
+    }
+}
 
 impl<T: Position> Default for Pool<T> {
     fn default() -> Self {
@@ -40,6 +55,13 @@ impl<T: Position> Default for Pool<T> {
         }
     }
 }
+impl<T: Position> Pool<T> {
+    /// Clears all the items in the pool
+    pub fn clear(&mut self) {
+        self.vec.clear();
+        self.garbage.clear();
+    }
+}
 
 impl Default for Pool<NodeId> {
     fn default() -> Self {
@@ -47,6 +69,13 @@ impl Default for Pool<NodeId> {
             vec: Default::default(),
             garbage: Default::default(),
         }
+    }
+}
+impl Pool<NodeId> {
+    /// Clears all the items in the pool
+    pub fn clear(&mut self) {
+        self.vec.clear();
+        self.garbage.clear();
     }
 }
 
@@ -161,12 +190,6 @@ impl<T> Pool<T> {
             self.vec.push(t);
             self.vec.len() - 1
         }
-    }
-
-    /// Clears all the items in the pool
-    pub fn clear(&mut self) {
-        self.vec.clear();
-        self.garbage.clear();
     }
 
     /// Returns the number of actual elements.
