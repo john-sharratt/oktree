@@ -514,15 +514,13 @@ impl Pool<NodeId> {
 /// Yields only an actual elements.
 /// Elements marked as removed are skipped.
 pub struct PoolIterator<'pool, T> {
-    pool: &'pool Pool<T>,
-    current: usize,
+    inner: std::slice::Iter<'pool, PoolItem<T>>,
 }
 
 impl<'pool, T> PoolIterator<'pool, T> {
     fn new(pool: &'pool Pool<T>) -> Self {
         PoolIterator {
-            pool,
-            current: Default::default(),
+            inner: pool.vec.iter(),
         }
     }
 }
@@ -531,16 +529,11 @@ impl<'pool, T> Iterator for PoolIterator<'pool, T> {
     type Item = &'pool T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.current < self.pool.vec.len() {
-            if self.pool.vec[self.current].garbage {
-                self.current += 1;
-                continue;
-            } else {
-                let current = self.current;
-                self.current += 1;
-                return Some(&self.pool.vec[current].item);
+        loop {
+            let next = self.inner.next()?;
+            if !next.garbage {
+                return Some(&next.item);
             }
         }
-        None
     }
 }
