@@ -149,8 +149,6 @@
 //! ```
 
 #![allow(dead_code)]
-#![feature(strict_overflow_ops)]
-#![feature(trait_alias)]
 
 #[cfg(feature = "bevy")]
 pub mod bevy_integration;

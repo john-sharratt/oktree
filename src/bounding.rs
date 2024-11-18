@@ -12,7 +12,7 @@ use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 
 use crate::TreeError;
 
-pub trait Unsigned = Integer
+pub trait Unsigned: Integer
     + NumUnsigned
     + NumCast
     + Shr<Self, Output = Self>
@@ -20,7 +20,15 @@ pub trait Unsigned = Integer
     + Copy
     + Display
     + Debug
-    + Default;
+    + Default
+{
+}
+impl Unsigned for u8 {}
+impl Unsigned for u16 {}
+impl Unsigned for u32 {}
+impl Unsigned for u64 {}
+impl Unsigned for u128 {}
+impl Unsigned for usize {}
 
 /// Tree Unsigned Vec3
 ///

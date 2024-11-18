@@ -98,12 +98,12 @@ impl Branch {
     }
 
     pub(crate) fn increment(&mut self) {
-        self.filled = self.filled.strict_add(1);
+        self.filled += 1;
         debug_assert!(self.filled <= 8);
     }
 
     pub(crate) fn decrement(&mut self) {
-        self.filled = self.filled.strict_sub(1);
+        self.filled -= 1;
     }
 
     /// Search which octant is suitable for the position.
