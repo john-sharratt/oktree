@@ -326,6 +326,16 @@ where
             .collect()
     }
 
+    /// Returns the number of actual elements in the tree
+    pub fn len(&self) -> usize {
+        self.elements.len()
+    }
+
+    /// Is the tree empty
+    pub fn is_empty(&self) -> bool {
+        self.elements.is_empty()
+    }
+
     /// Returns an iterator over the elements in the tree.
     pub fn iter(&self) -> PoolIterator<T> {
         self.elements.iter()
