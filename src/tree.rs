@@ -271,6 +271,14 @@ where
         self.root = Default::default();
     }
 
+    /// Restores all the garbage elements back to real elements. Effectively
+    /// this is a rollback of all the remove operations that happened
+    pub fn restore_garbage(&mut self) {
+        self.elements.restore_garbage();
+        self.nodes.restore_garbage();
+        self.map.restore_garbage();
+    }
+
     /// Search for the element at the [`point`](TUVec3)
     ///
     /// Returns element's [`id`](ElementId) or [`None`] if elements if not found.
@@ -321,23 +329,12 @@ where
 
     /// Consumes a tree, converting it into a [`vector`](Vec).
     pub fn to_vec(self) -> Vec<T> {
-        if self.elements.has_garbage() {
-            let garbage = self.elements.garbage;
-            self.elements
-                .vec
-                .into_iter()
-                .enumerate()
-                .filter_map(|(i, element)| {
-                    if garbage.contains(&i) {
-                        None
-                    } else {
-                        Some(element)
-                    }
-                })
-                .collect()
-        } else {
-            self.elements.vec
-        }
+        self.elements
+            .vec
+            .into_iter()
+            .filter(|e| !e.garbage)
+            .map(|e| e.item)
+            .collect()
     }
 
     /// Returns the number of actual elements in the tree
@@ -351,12 +348,8 @@ where
     }
 
     /// Returns an iterator over the elements in the tree.
-    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
-        if self.elements.has_garbage() {
-            Box::new(self.elements.iter())
-        } else {
-            Box::new(self.elements.vec.iter())
-        }
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.elements.iter()
     }
 }
 

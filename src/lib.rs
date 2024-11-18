@@ -497,7 +497,7 @@ mod tests {
         assert!(tree.elements.len() > (RANGE as f32 * 0.98) as usize);
         assert!(tree.map.len() > (RANGE as f32 * 0.98) as usize);
 
-        for element in 0..tree.elements.len() {
+        for element in 0..tree.len() {
             let e = ElementId(element as u32);
             let pos = tree.elements[e].position;
             assert_eq!(tree.find(pos), Some(e));
