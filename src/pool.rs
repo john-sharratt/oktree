@@ -295,7 +295,7 @@ impl<U: Unsigned> Pool<Node<U>> {
     #[inline(always)]
     pub(crate) fn remove(&mut self, node: NodeId) {
         let index: usize = node.into();
-        self.vec[node.0 as usize].garbage = true;
+        self.vec[index].garbage = true;
         self.garbage.push(index);
     }
 
@@ -407,7 +407,7 @@ impl<T: Position> Pool<T> {
     #[inline(always)]
     pub(crate) fn remove(&mut self, element: ElementId) {
         let index: usize = element.into();
-        self.vec[element.0 as usize].garbage = true;
+        self.vec[index].garbage = true;
         self.garbage.push(index);
     }
 
@@ -469,7 +469,7 @@ impl Pool<NodeId> {
     #[inline(always)]
     pub(crate) fn remove(&mut self, element: ElementId) {
         let index: usize = element.into();
-        self.vec[element.0 as usize].garbage = true;
+        self.vec[index].garbage = true;
         self.garbage.push(index);
     }
 
