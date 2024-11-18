@@ -12,7 +12,8 @@ use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 
 use crate::TreeError;
 
-pub trait Unsigned: Integer
+pub trait Unsigned:
+    Integer
     + NumUnsigned
     + NumCast
     + Shr<Self, Output = Self>

@@ -205,7 +205,7 @@ where
     ///
     /// let c1_id = tree.upsert(c1).unwrap();
     /// assert_eq!(c1_id, ElementId(0))
-    /// 
+    ///
     /// let c1_id = tree.upsert(c1).unwrap();
     /// assert_eq!(c1_id, ElementId(1))
     /// ```
@@ -251,7 +251,7 @@ where
     }
 
     /// Clear all the elements in the octree and reset it to the initial state.
-    /// 
+    ///
     /// The capacity of the octree is preserved and thus the octree can be immediately
     /// reused for new elements without causing any memory reallocations.
     pub fn clear(&mut self) {
