@@ -3,7 +3,7 @@
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},
-    pool::{Pool, PoolIterator},
+    pool::Pool,
     ElementId, NodeId, Position, TreeError,
 };
 
@@ -311,19 +311,23 @@ where
 
     /// Consumes a tree, converting it into a [`vector`](Vec).
     pub fn to_vec(self) -> Vec<T> {
-        let garbage = self.elements.garbage;
-        self.elements
-            .vec
-            .into_iter()
-            .enumerate()
-            .filter_map(|(i, element)| {
-                if garbage.contains(&i) {
-                    None
-                } else {
-                    Some(element)
-                }
-            })
-            .collect()
+        if self.elements.has_garbage() {
+            let garbage = self.elements.garbage;
+            self.elements
+                .vec
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, element)| {
+                    if garbage.contains(&i) {
+                        None
+                    } else {
+                        Some(element)
+                    }
+                })
+                .collect()
+        } else {
+            self.elements.vec
+        }
     }
 
     /// Returns the number of actual elements in the tree
@@ -337,8 +341,12 @@ where
     }
 
     /// Returns an iterator over the elements in the tree.
-    pub fn iter(&self) -> PoolIterator<T> {
-        self.elements.iter()
+    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
+        if self.elements.has_garbage() {
+            Box::new(self.elements.iter())
+        } else {
+            Box::new(self.elements.vec.iter())
+        }
     }
 }
 

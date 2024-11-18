@@ -375,6 +375,10 @@ impl<T: Position> Pool<T> {
     pub fn is_garbaged(&self, element: ElementId) -> bool {
         self.garbage.contains(&(element.into()))
     }
+
+    pub fn has_garbage(&self) -> bool {
+        !self.garbage.is_empty()
+    }
 }
 
 impl Pool<NodeId> {
