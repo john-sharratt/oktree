@@ -513,14 +513,17 @@ impl Pool<NodeId> {
 ///
 /// Yields only an actual elements.
 /// Elements marked as removed are skipped.
+#[derive(Clone)]
 pub struct PoolIterator<'pool, T> {
     inner: std::slice::Iter<'pool, PoolItem<T>>,
+    garbage_len: usize,
 }
 
 impl<'pool, T> PoolIterator<'pool, T> {
     fn new(pool: &'pool Pool<T>) -> Self {
         PoolIterator {
             inner: pool.vec.iter(),
+            garbage_len: pool.garbage_len(),
         }
     }
 }
@@ -536,4 +539,34 @@ impl<'pool, T> Iterator for PoolIterator<'pool, T> {
             }
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let hint = self.inner.size_hint();
+        (
+            hint.0.saturating_sub(self.garbage_len),
+            hint.1.map(|x| x.saturating_sub(self.garbage_len)),
+        )
+    }
+}
+
+impl<'pool, T> DoubleEndedIterator for PoolIterator<'pool, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self.inner.next_back()?;
+            if !next.garbage {
+                return Some(&next.item);
+            }
+        }
+    }
+}
+
+impl<'pool, T> ExactSizeIterator for PoolIterator<'pool, T> {
+    fn len(&self) -> usize {
+        self.inner.len() - self.garbage_len
+    }
+}
+
+impl<'pool, T> std::iter::FusedIterator for PoolIterator<'pool, T> where
+    std::slice::Iter<'pool, PoolItem<T>>: std::iter::FusedIterator
+{
 }
