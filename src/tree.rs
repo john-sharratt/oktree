@@ -356,6 +356,11 @@ where
     pub fn into_iter(self) -> impl IntoIterator<Item = T> {
         self.elements.into_iter()
     }
+
+    /// Returns an iterator over the nodes in the tree.
+    pub fn iter_nodes(&self) -> PoolIterator<Node<U>> {
+        self.nodes.iter()
+    }
 }
 
 impl<U, T> Clone for Octree<U, T>

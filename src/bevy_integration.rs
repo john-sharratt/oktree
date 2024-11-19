@@ -5,7 +5,7 @@
 //! ### Intersections:
 //! - [`ray`](RayCast3d) [intersection](Octree::ray_cast)
 //!
-//! ```no_run
+//! ```ignore
 //! let ray = RayCast3d::new(Vec3A::new(7.0, 5.9, 1.01), Dir3A::NEG_X, 10.0);
 //! assert_eq!(
 //!   tree.ray_cast(&ray),
@@ -18,7 +18,7 @@
 //!
 //! - [`Sphere`](BoundingSphere) [intersection](Octree::intersect)
 //!
-//! ```no_run
+//! ```ignore
 //! let sphere = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 10.0);
 //! assert_eq!(
 //!   tree.intersect(&sphere),
@@ -28,7 +28,7 @@
 //!
 //! - [`Aabb`](Aabb3d) [intersection](Octree::intersect)
 //!
-//! ```no_run
+//! ```ignore
 //! let aabb = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
 //! assert_eq!(tree.intersect(&aabb), vec![ElementId(0), ElementId(1)]);
 //! ```
@@ -110,6 +110,61 @@ where
 
                 NodeType::Branch(Branch { children, .. }) => {
                     children.map(|child| self.recursive_ray_cast(child, ray, hit));
+                }
+            }
+        }
+    }
+
+    /// Intersect [`Octree`] with a custom .
+    ///
+    /// Returns the [`vector`](Vec) of [`elements`](ElementId),
+    /// intersected by volume.
+    ///
+    /// ```ignore
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    ///
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// // Bounding box intersection
+    /// let aabb = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
+    /// assert_eq!(tree.intersect(&aabb), vec![c1_id]);
+    ///
+    /// // Bounding sphere intersection
+    /// let sphere = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 6.0);
+    /// assert_eq!(tree.intersect(&sphere), vec![c1_id]);
+    /// ```
+    pub fn intersect_with<F>(&self, what: F) -> Vec<ElementId>
+    where
+        F: Fn(&Aabb3d) -> bool,
+    {
+        let mut elements = Vec::with_capacity(10);
+        self.rintersect_with(self.root, &what, &mut elements);
+        elements
+    }
+
+    fn rintersect_with<F>(&self, node: NodeId, what: &F, elements: &mut Vec<ElementId>)
+    where
+        F: Fn(&Aabb3d) -> bool,
+    {
+        let n = self.nodes[node];
+        match n.ntype {
+            NodeType::Empty => (),
+
+            NodeType::Leaf(e) => {
+                let aabb = self.elements[e].position().unit_aabb().into();
+                if what(&aabb) {
+                    elements.push(e);
+                };
+            }
+
+            NodeType::Branch(Branch { children, .. }) => {
+                let aabb: Aabb3d = n.aabb.into();
+
+                if what(&aabb) {
+                    for child in children {
+                        self.rintersect_with(child, what, elements);
+                    }
                 }
             }
         }
