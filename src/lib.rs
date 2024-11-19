@@ -160,8 +160,11 @@ pub mod tree;
 
 use bounding::{TUVec3, Unsigned};
 use std::{
+    borrow::Cow,
     error::Error,
     fmt::{self},
+    ops::Deref,
+    sync::Arc,
 };
 
 // Implement on stored type to inform a tree
@@ -170,6 +173,39 @@ pub trait Position {
     type U: Unsigned;
 
     fn position(&self) -> TUVec3<Self::U>;
+}
+
+impl<T> Position for Cow<'_, T>
+where
+    T: Position + Clone,
+{
+    type U = T::U;
+
+    fn position(&self) -> TUVec3<Self::U> {
+        self.deref().position()
+    }
+}
+
+impl<T> Position for Arc<T>
+where
+    T: Position,
+{
+    type U = T::U;
+
+    fn position(&self) -> TUVec3<Self::U> {
+        self.deref().position()
+    }
+}
+
+impl<T> Position for Box<T>
+where
+    T: Position,
+{
+    type U = T::U;
+
+    fn position(&self) -> TUVec3<Self::U> {
+        self.deref().position()
+    }
 }
 
 /// Index [`tree.nodes`](pool::Pool) with it.
