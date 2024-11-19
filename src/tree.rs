@@ -353,6 +353,22 @@ where
     }
 }
 
+impl<U, T> Clone for Octree<U, T>
+where
+    U: Unsigned,
+    T: Position<U = U> + Clone,
+{
+    fn clone(&self) -> Self {
+        Octree {
+            aabb: self.aabb,
+            elements: self.elements.clone(),
+            nodes: self.nodes.clone(),
+            map: self.map.clone(),
+            root: self.root,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Insertion<U: Unsigned> {
     element: ElementId,

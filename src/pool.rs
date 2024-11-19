@@ -27,6 +27,18 @@ impl<T> From<T> for PoolItem<T> {
     }
 }
 
+impl<T> Clone for PoolItem<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        PoolItem {
+            item: self.item.clone(),
+            garbage: self.garbage,
+        }
+    }
+}
+
 /// [`Pool`] data structure.
 ///
 /// When element is removed no memory deallocation happens.
@@ -34,6 +46,35 @@ impl<T> From<T> for PoolItem<T> {
 pub struct Pool<T> {
     pub(crate) vec: Vec<PoolItem<T>>,
     pub(crate) garbage: Vec<usize>,
+}
+
+impl<T: Position> Clone for Pool<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Pool {
+            vec: self.vec.clone(),
+            garbage: self.garbage.clone(),
+        }
+    }
+}
+
+impl<U: Unsigned> Clone for Pool<Node<U>> {
+    fn clone(&self) -> Self {
+        Pool {
+            vec: self.vec.clone(),
+            garbage: self.garbage.clone(),
+        }
+    }
+}
+impl Clone for Pool<NodeId> {
+    fn clone(&self) -> Self {
+        Pool {
+            vec: self.vec.clone(),
+            garbage: self.garbage.clone(),
+        }
+    }
 }
 
 impl<U: Unsigned> Default for Pool<Node<U>> {
