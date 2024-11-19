@@ -351,6 +351,11 @@ where
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.elements.iter()
     }
+
+    /// Returns an iterator over the elements in the tree.
+    pub fn into_iter(self) -> impl IntoIterator<Item = T> {
+        self.elements.into_iter()
+    }
 }
 
 impl<U, T> Clone for Octree<U, T>

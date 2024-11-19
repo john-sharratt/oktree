@@ -284,6 +284,13 @@ impl<T> Pool<T> {
     pub fn iter(&self) -> PoolIterator<T> {
         PoolIterator::new(self)
     }
+
+    /// Returns a [`PoolIterator`], which iterates over an actual elements.
+    ///
+    /// Elements marked as deleted are skipped.
+    pub fn into_iter(self) -> impl IntoIterator<Item = T> {
+        self.vec.into_iter().filter(|i| !i.garbage).map(|i| i.item)
+    }
 }
 
 impl<U: Unsigned> Pool<Node<U>> {
