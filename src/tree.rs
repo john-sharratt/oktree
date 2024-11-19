@@ -3,7 +3,7 @@
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},
-    pool::Pool,
+    pool::{Pool, PoolIterator},
     ElementId, NodeId, Position, TreeError,
 };
 
@@ -348,7 +348,7 @@ where
     }
 
     /// Returns an iterator over the elements in the tree.
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
+    pub fn iter<'a>(&'a self) -> PoolIterator<'a, T> {
         self.elements.iter()
     }
 
