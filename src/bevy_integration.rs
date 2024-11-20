@@ -136,7 +136,7 @@ where
     /// ```
     pub fn intersect_with<F>(&self, what: F) -> Vec<ElementId>
     where
-        F: Fn(&Aabb3d) -> bool,
+        F: Fn(&Aabb<U>) -> bool,
     {
         let mut elements = Vec::with_capacity(10);
         self.rintersect_with(self.root, &what, &mut elements);
@@ -145,23 +145,21 @@ where
 
     fn rintersect_with<F>(&self, node: NodeId, what: &F, elements: &mut Vec<ElementId>)
     where
-        F: Fn(&Aabb3d) -> bool,
+        F: Fn(&Aabb<U>) -> bool,
     {
         let n = self.nodes[node];
         match n.ntype {
             NodeType::Empty => (),
 
             NodeType::Leaf(e) => {
-                let aabb = self.elements[e].position().unit_aabb().into();
+                let aabb = self.elements[e].position().unit_aabb();
                 if what(&aabb) {
                     elements.push(e);
                 };
             }
 
             NodeType::Branch(Branch { children, .. }) => {
-                let aabb: Aabb3d = n.aabb.into();
-
-                if what(&aabb) {
+                if what(&n.aabb) {
                     for child in children {
                         self.rintersect_with(child, what, elements);
                     }
