@@ -115,7 +115,7 @@ where
         }
     }
 
-    /// Intersect [`Octree`] with a custom .
+    /// Intersect [`Octree`] with a custom intersection closure.
     ///
     /// Returns the [`vector`](Vec) of [`elements`](ElementId),
     /// intersected by volume.
@@ -127,12 +127,7 @@ where
     /// let c1_id = tree.insert(c1).unwrap();
     ///
     /// // Bounding box intersection
-    /// let aabb = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
-    /// assert_eq!(tree.intersect(&aabb), vec![c1_id]);
-    ///
-    /// // Bounding sphere intersection
-    /// let sphere = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 6.0);
-    /// assert_eq!(tree.intersect(&sphere), vec![c1_id]);
+    /// assert_eq!(tree.intersect_with(|_| true), vec![c1_id]);
     /// ```
     pub fn intersect_with<F>(&self, what: F) -> Vec<ElementId>
     where

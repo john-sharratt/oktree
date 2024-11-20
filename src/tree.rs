@@ -3,7 +3,7 @@
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},
-    pool::{Pool, PoolElementIterator, PoolIterator},
+    pool::{Pool, PoolElementIterator, PoolIntoIterator, PoolIterator},
     ElementId, NodeId, Position, TreeError,
 };
 
@@ -348,13 +348,8 @@ where
     }
 
     /// Returns an iterator over the elements in the tree.
-    pub fn iter<'a>(&'a self) -> PoolIterator<'a, T> {
+    pub fn iter(&self) -> PoolIterator<'_, T> {
         self.elements.iter()
-    }
-
-    /// Returns an iterator over the elements in the tree.
-    pub fn into_iter(self) -> impl IntoIterator<Item = T> {
-        self.elements.into_iter()
     }
 
     /// Returns an iterator over the nodes in the tree.
@@ -363,8 +358,17 @@ where
     }
 
     /// Returns an iterator over the elements in the tree.
-    pub fn iter_elements<'a>(&'a self) -> PoolElementIterator<'a, T> {
+    pub fn iter_elements(&self) -> PoolElementIterator<'_, T> {
         self.elements.iter_elements()
+    }
+}
+
+impl<U: Unsigned, T: Position<U = U>> std::iter::IntoIterator for Octree<U, T> {
+    type Item = T;
+    type IntoIter = PoolIntoIterator<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.elements.into_iter()
     }
 }
 

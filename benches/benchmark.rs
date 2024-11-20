@@ -136,7 +136,7 @@ fn octree_insert_using_clear(
     }
 }
 
-fn octree_remove(tree: &mut Octree<usize, DummyCell<usize>>, points: &[DummyCell<usize>]) {
+fn octree_remove(tree: &mut Octree<usize, DummyCell<usize>>) {
     tree.restore_garbage();
     for element in 0..tree.len() {
         let _ = tree.remove(element.into());
@@ -181,9 +181,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     let mut tree = octree_insert(&points);
-    group.bench_function("octree remove", |b| {
-        b.iter(|| octree_remove(&mut tree, &points))
-    });
+    group.bench_function("octree remove", |b| b.iter(|| octree_remove(&mut tree)));
 
     let tree = octree_insert(&points);
     group.bench_function("octree find", |b| b.iter(|| octree_find(&tree, &points)));

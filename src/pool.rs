@@ -15,6 +15,7 @@ use crate::{
 /// [`PoolItem`] data structure that combines both the garbage flag
 /// and the actual item together for better cache locality.
 #[repr(align(8))]
+#[derive(Clone)]
 pub(crate) struct PoolItem<T> {
     pub(crate) item: T,
     pub(crate) garbage: bool,
@@ -28,54 +29,14 @@ impl<T> From<T> for PoolItem<T> {
     }
 }
 
-impl<T> Clone for PoolItem<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        PoolItem {
-            item: self.item.clone(),
-            garbage: self.garbage,
-        }
-    }
-}
-
 /// [`Pool`] data structure.
 ///
 /// When element is removed no memory deallocation happens.
 /// Removed elements are only marked as deleted and their memory could be reused.  
+#[derive(Clone)]
 pub struct Pool<T> {
     pub(crate) vec: Vec<PoolItem<T>>,
     pub(crate) garbage: Vec<usize>,
-}
-
-impl<T: Position> Clone for Pool<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        Pool {
-            vec: self.vec.clone(),
-            garbage: self.garbage.clone(),
-        }
-    }
-}
-
-impl<U: Unsigned> Clone for Pool<Node<U>> {
-    fn clone(&self) -> Self {
-        Pool {
-            vec: self.vec.clone(),
-            garbage: self.garbage.clone(),
-        }
-    }
-}
-impl Clone for Pool<NodeId> {
-    fn clone(&self) -> Self {
-        Pool {
-            vec: self.vec.clone(),
-            garbage: self.garbage.clone(),
-        }
-    }
 }
 
 impl<U: Unsigned> Default for Pool<Node<U>> {
@@ -292,12 +253,14 @@ impl<T> Pool<T> {
     pub fn iter_elements(&self) -> PoolElementIterator<T> {
         PoolElementIterator::new(self)
     }
+}
 
-    /// Returns a [`PoolIterator`], which iterates over an actual elements.
-    ///
-    /// Elements marked as deleted are skipped.
-    pub fn into_iter(self) -> impl IntoIterator<Item = T> {
-        self.vec.into_iter().filter(|i| !i.garbage).map(|i| i.item)
+impl<T> IntoIterator for Pool<T> {
+    type Item = T;
+    type IntoIter = PoolIntoIterator<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        PoolIntoIterator::new(self)
     }
 }
 
@@ -687,4 +650,98 @@ impl<'pool, T> ExactSizeIterator for PoolElementIterator<'pool, T> {
 impl<'pool, T> std::iter::FusedIterator for PoolElementIterator<'pool, T> where
     std::slice::Iter<'pool, PoolItem<T>>: std::iter::FusedIterator
 {
+}
+
+/// IntoIterator for a [`Pool`] that includes elements
+///
+/// Yields only an actual elements.
+/// Elements marked as removed are skipped.
+#[derive(Clone)]
+pub struct PoolIntoIterator<T> {
+    inner: std::vec::IntoIter<PoolItem<T>>,
+    garbage_len: usize,
+}
+
+impl<T> PoolIntoIterator<T> {
+    fn new(pool: Pool<T>) -> Self {
+        PoolIntoIterator {
+            garbage_len: pool.garbage_len(),
+            inner: pool.vec.into_iter(),
+        }
+    }
+}
+
+impl<T> Iterator for PoolIntoIterator<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self.inner.next()?;
+            if !next.garbage {
+                return Some(next.item);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let hint = self.inner.size_hint();
+        (
+            hint.0.saturating_sub(self.garbage_len),
+            hint.1.map(|x| x.saturating_sub(self.garbage_len)),
+        )
+    }
+}
+
+impl<T> DoubleEndedIterator for PoolIntoIterator<T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self.inner.next_back()?;
+            if !next.garbage {
+                return Some(next.item);
+            }
+        }
+    }
+}
+
+impl<T> ExactSizeIterator for PoolIntoIterator<T> {
+    fn len(&self) -> usize {
+        self.inner.len() - self.garbage_len
+    }
+}
+
+impl<T> std::iter::FusedIterator for PoolIntoIterator<T> where
+    std::vec::IntoIter<PoolItem<T>>: std::iter::FusedIterator
+{
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::prelude::*;
+
+    struct DummyNotClonableNotSend<'a> {
+        pos: TUVec3<u8>,
+        special: &'a str,
+    }
+    impl Position for DummyNotClonableNotSend<'_> {
+        type U = u8;
+
+        fn position(&self) -> TUVec3<Self::U> {
+            self.pos
+        }
+    }
+
+    #[test]
+    fn test_non_clonable_compile() {
+        let mut test_field = "TEST".to_string();
+
+        let mut pool = Pool::<DummyNotClonableNotSend>::default();
+        let element = DummyNotClonableNotSend {
+            pos: TUVec3::new(1, 2, 3),
+            special: &mut test_field,
+        };
+        let element_id = pool.insert(element);
+        let element = &pool[element_id];
+        assert_eq!(element.pos, TUVec3::new(1, 2, 3));
+    }
 }
