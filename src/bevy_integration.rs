@@ -166,11 +166,11 @@ where
     /// let mut elements = Vec::new();
     /// assert_eq!(tree.extend_intersect_with(|_| true, &mut elements), vec![c1_id]);
     /// ```
-    pub fn extend_intersect_with<F>(&self, what: &F, elements: &mut Vec<ElementId>)
+    pub fn extend_intersect_with<F>(&self, what: F, elements: &mut Vec<ElementId>)
     where
         F: Fn(&Aabb<U>) -> bool,
     {
-        self.rintersect_with(self.root, what, elements);
+        self.rintersect_with(self.root, &what, elements);
     }
 
     fn rintersect_with<F>(&self, node: NodeId, what: &F, elements: &mut Vec<ElementId>)
