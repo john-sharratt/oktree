@@ -90,9 +90,11 @@ where
     /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
     /// Returns inserted element's [`id`](ElementId)
     ///
-    /// ```ignore
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// let c1_id = tree.insert(c1).unwrap();
     ///
     /// assert_eq!(c1_id, ElementId(0))
@@ -205,15 +207,17 @@ where
     /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
     /// Returns inserted element's [`id`](ElementId)
     ///
-    /// ```ignore
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     ///
     /// let c1_id = tree.upsert(c1).unwrap();
-    /// assert_eq!(c1_id, ElementId(0))
+    /// assert_eq!(c1_id, ElementId(0));
     ///
     /// let c1_id = tree.upsert(c1).unwrap();
-    /// assert_eq!(c1_id, ElementId(1))
+    /// assert_eq!(c1_id, ElementId(0));
     /// ```
     pub fn upsert(&mut self, elem: T) -> Result<ElementId, TreeError> {
         if let Some(existing) = self.find(elem.position()) {
@@ -228,12 +232,14 @@ where
     /// No memory deallocaton happening.
     /// Element is only marked as removed and could be reused.
     ///
-    /// ```ignore
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// let c1_id = tree.insert(c1).unwrap();
     ///
-    /// assert_eq!(tree.remove(c1_id).is_ok())
+    /// assert_eq!(tree.remove(c1_id).is_ok(), true);
     /// ```
     pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
         let node = self.map[element];
@@ -283,12 +289,14 @@ where
     ///
     /// Returns element's [`id`](ElementId) or [`None`] if elements if not found.
     ///
-    /// ```ignore
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// tree.insert(c1).unwrap();
     ///
-    /// let c2 = DummyCell::new(TUVec3::new(4, 5, 6));
+    /// let c2 = TUVec3u8::new(4, 5, 6);
     /// let eid = tree.insert(c2).unwrap();
     ///
     /// assert_eq!(tree.find(TUVec3::new(4, 5, 6)), Some(eid));
@@ -321,11 +329,29 @@ where
     }
 
     /// Returns the node's [`id`](NodeId) containing the element if element exists and not garbaged.
-    pub fn get_node(&self, element: ElementId) -> Option<NodeId> {
+    pub fn get_node_id(&self, element: ElementId) -> Option<NodeId> {
         if self.map.is_garbaged(element) {
             None
         } else {
-            Some(self.map[element])
+            Some(self.map[element.into()])
+        }
+    }
+
+    /// Returns the node's [`id`](NodeId) containing the element if element exists and not garbaged.
+    pub fn get_node(&self, element: ElementId) -> Option<Node<U>> {
+        if self.map.is_garbaged(element) {
+            None
+        } else {
+            Some(self.nodes[self.map[element.into()]])
+        }
+    }
+
+    /// Returns the element if element exists and not garbaged.
+    pub fn get_element(&self, element: ElementId) -> Option<&T> {
+        if self.elements.is_garbaged(element) {
+            None
+        } else {
+            Some(&self.elements[element])
         }
     }
 

@@ -64,7 +64,7 @@
 //!
 //! Implement [`Position`] for the handled type, so that it can return it's spatial coordinates.
 //!
-//! ```ignore
+//! ```rust
 //! use bevy::math::{
 //!     bounding::{Aabb3d, BoundingSphere, RayCast3d},
 //!     Dir3, Vec3,
@@ -210,13 +210,22 @@ where
 
 /// Index [`tree.nodes`](pool::Pool) with it.
 ///
-/// ```ignore
+/// ```rust
 /// use oktree::prelude::*;
+/// use oktree::node::Node;
 ///
-/// let node: Node<u16> = tree.nodes[NodeId(0)];
+/// let mut tree = Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(16), 16u16).unwrap(), 10);
+/// tree.insert(TUVec3u16::new(5, 5, 5)).unwrap();
+/// let node: Node<u16> = tree.get_node(ElementId(0)).unwrap();
 /// ```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct NodeId(pub u32);
+
+impl From<NodeId> for ElementId {
+    fn from(value: NodeId) -> Self {
+        ElementId(value.0)
+    }
+}
 
 impl From<NodeId> for usize {
     fn from(value: NodeId) -> Self {
@@ -239,8 +248,12 @@ impl fmt::Display for NodeId {
 /// Index [`tree.elements`](pool::Pool) with it.
 /// Stored type element will be returned.
 ///
-/// ```ignore
-/// let element = tree.elements[ElementId(0)]
+/// ```rust
+/// use oktree::prelude::*;
+///
+/// let mut tree = Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(16), 16u16).unwrap(), 10);
+/// tree.insert(TUVec3u16::new(5, 5, 5)).unwrap();
+/// let element: &TUVec3u16 = tree.get_element(ElementId(0)).unwrap();
 /// ```
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct ElementId(pub u32);
@@ -471,7 +484,7 @@ mod tests {
         let c5 = DummyCell::new(TUVec3::new(6, 7, 1));
         assert_eq!(tree.insert(c5), Ok(ElementId(4)));
 
-        assert_eq!(tree.get_node(ElementId(0)), Some(NodeId(9)));
+        assert_eq!(tree.get_node_id(ElementId(0)), Some(NodeId(9)));
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
         assert_eq!(tree.nodes[1.into()].fullness(), Ok(2));
@@ -479,7 +492,7 @@ mod tests {
 
         assert_eq!(tree.remove(0.into()), Ok(()));
 
-        assert_eq!(tree.get_node(ElementId(0)), None);
+        assert_eq!(tree.get_node_id(ElementId(0)), None);
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(1.into()));
@@ -487,7 +500,7 @@ mod tests {
 
         assert_eq!(tree.remove(1.into()), Ok(()));
 
-        assert_eq!(tree.get_node(ElementId(1)), None);
+        assert_eq!(tree.get_node_id(ElementId(1)), None);
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);
