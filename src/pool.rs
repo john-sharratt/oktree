@@ -2,6 +2,7 @@
 
 use std::{
     array::from_fn,
+    iter::Enumerate,
     ops::{Index, IndexMut},
 };
 
@@ -283,6 +284,13 @@ impl<T> Pool<T> {
     /// Elements marked as deleted are skipped.
     pub fn iter(&self) -> PoolIterator<T> {
         PoolIterator::new(self)
+    }
+
+    /// Returns a [`PoolIterator`], which iterates over an actual elements and element ids
+    ///
+    /// Elements marked as deleted are skipped.
+    pub fn iter_elements(&self) -> PoolElementIterator<T> {
+        PoolElementIterator::new(self)
     }
 
     /// Returns a [`PoolIterator`], which iterates over an actual elements.
@@ -615,6 +623,68 @@ impl<'pool, T> ExactSizeIterator for PoolIterator<'pool, T> {
 }
 
 impl<'pool, T> std::iter::FusedIterator for PoolIterator<'pool, T> where
+    std::slice::Iter<'pool, PoolItem<T>>: std::iter::FusedIterator
+{
+}
+
+/// Iterator for a [`Pool`] that includes element IDs
+///
+/// Yields only an actual elements.
+/// Elements marked as removed are skipped.
+#[derive(Clone)]
+pub struct PoolElementIterator<'pool, T> {
+    inner: Enumerate<std::slice::Iter<'pool, PoolItem<T>>>,
+    garbage_len: usize,
+}
+
+impl<'pool, T> PoolElementIterator<'pool, T> {
+    fn new(pool: &'pool Pool<T>) -> Self {
+        PoolElementIterator {
+            inner: pool.vec.iter().enumerate(),
+            garbage_len: pool.garbage_len(),
+        }
+    }
+}
+
+impl<'pool, T> Iterator for PoolElementIterator<'pool, T> {
+    type Item = (ElementId, &'pool T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self.inner.next()?;
+            if !next.1.garbage {
+                return Some((ElementId(next.0 as u32), &next.1.item));
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let hint = self.inner.size_hint();
+        (
+            hint.0.saturating_sub(self.garbage_len),
+            hint.1.map(|x| x.saturating_sub(self.garbage_len)),
+        )
+    }
+}
+
+impl<'pool, T> DoubleEndedIterator for PoolElementIterator<'pool, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self.inner.next_back()?;
+            if !next.1.garbage {
+                return Some((ElementId(next.0 as u32), &next.1.item));
+            }
+        }
+    }
+}
+
+impl<'pool, T> ExactSizeIterator for PoolElementIterator<'pool, T> {
+    fn len(&self) -> usize {
+        self.inner.len() - self.garbage_len
+    }
+}
+
+impl<'pool, T> std::iter::FusedIterator for PoolElementIterator<'pool, T> where
     std::slice::Iter<'pool, PoolItem<T>>: std::iter::FusedIterator
 {
 }
