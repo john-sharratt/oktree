@@ -242,7 +242,7 @@ impl fmt::Display for NodeId {
 /// ```ignore
 /// let element = tree.elements[ElementId(0)]
 /// ```
-#[derive(Default, Clone, Copy, PartialEq, Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct ElementId(pub u32);
 
 impl From<ElementId> for usize {
