@@ -35,7 +35,7 @@ impl Unsigned for usize {}
 ///
 /// Inner typy shuld be any [`Unsigned`](num::Unsigned):
 /// `u8`, `u16`, `u32`, `u64`, `u128`, `usize`.
-#[derive(Default, Debug, PartialEq, Clone, Copy)]
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct TUVec3<U: Unsigned> {
     pub x: U,
     pub y: U,

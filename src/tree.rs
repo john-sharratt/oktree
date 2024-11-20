@@ -298,23 +298,25 @@ where
         self.rfind(self.root, point)
     }
 
-    fn rfind(&self, node: NodeId, point: TUVec3<U>) -> Option<ElementId> {
-        let ntype = self.nodes[node].ntype;
-        match ntype {
-            NodeType::Empty => None,
+    fn rfind(&self, mut node: NodeId, point: TUVec3<U>) -> Option<ElementId> {
+        loop {
+            let ntype = self.nodes[node].ntype;
+            return match ntype {
+                NodeType::Empty => None,
 
-            NodeType::Leaf(e) => {
-                if self.elements[e].position() == point {
-                    Some(e)
-                } else {
-                    None
+                NodeType::Leaf(e) => {
+                    if self.elements[e].position() == point {
+                        Some(e)
+                    } else {
+                        None
+                    }
                 }
-            }
 
-            NodeType::Branch(ref branch) => {
-                let child = branch.find_child(point, self.nodes[node].aabb.center());
-                self.rfind(child, point)
-            }
+                NodeType::Branch(ref branch) => {
+                    node = branch.find_child(point, self.nodes[node].aabb.center());
+                    continue;
+                }
+            };
         }
     }
 

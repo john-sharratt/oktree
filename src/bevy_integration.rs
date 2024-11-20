@@ -37,6 +37,7 @@ use bevy::math::{
     bounding::{Aabb3d, BoundingSphere, IntersectsVolume, RayCast3d},
     Vec3, Vec3A,
 };
+use heapless::Vec as HVec;
 use num::cast;
 
 use crate::{
@@ -79,37 +80,48 @@ where
     }
 
     fn recursive_ray_cast(&self, node: NodeId, ray: &RayCast3d, hit: &mut HitResult) {
-        let n = &self.nodes[node];
+        // We use a heapless stack to loop through the nodes until we complete the cast however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = &self.nodes[node];
+            let aabb: Aabb3d = n.aabb.into();
+            if ray.intersects(&aabb) {
+                match n.ntype {
+                    NodeType::Empty => (),
 
-        if n.ntype == NodeType::Empty {
-            return;
-        }
-
-        let aabb: Aabb3d = n.aabb.into();
-        if ray.intersects(&aabb) {
-            match n.ntype {
-                NodeType::Empty => (),
-
-                NodeType::Leaf(element) => {
-                    let aabb = self.elements[element].position().unit_aabb().into();
-                    if let Some(dist) = ray.aabb_intersection_at(&aabb) {
-                        match hit.element {
-                            Some(_) => {
-                                if hit.distance > dist {
+                    NodeType::Leaf(element) => {
+                        let aabb = self.elements[element].position().unit_aabb().into();
+                        if let Some(dist) = ray.aabb_intersection_at(&aabb) {
+                            match hit.element {
+                                Some(_) => {
+                                    if hit.distance > dist {
+                                        hit.element = Some(element);
+                                        hit.distance = dist;
+                                    }
+                                }
+                                None => {
                                     hit.element = Some(element);
                                     hit.distance = dist;
                                 }
                             }
-                            None => {
-                                hit.element = Some(element);
-                                hit.distance = dist;
+                        }
+                    }
+
+                    NodeType::Branch(Branch { children, .. }) => {
+                        let mut iter = children.into_iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(child).is_err() {
+                                self.recursive_ray_cast(child, ray, hit);
+                                while let Some(child) = iter.next() {
+                                    self.recursive_ray_cast(child, ray, hit);
+                                }
                             }
                         }
                     }
-                }
-
-                NodeType::Branch(Branch { children, .. }) => {
-                    children.map(|child| self.recursive_ray_cast(child, ray, hit));
                 }
             }
         }
@@ -138,25 +150,62 @@ where
         elements
     }
 
+    /// Intersect [`Octree`] with a custom intersection closure reusing a
+    /// supplied [`vector`](Vec) rather than allocating a new one.
+    ///
+    /// Returns the [`vector`](Vec) of [`elements`](ElementId),
+    /// intersected by volume.
+    ///
+    /// ```ignore
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    ///
+    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// // Bounding box intersection
+    /// let mut elements = Vec::new();
+    /// assert_eq!(tree.extend_intersect_with(|_| true, &mut elements), vec![c1_id]);
+    /// ```
+    pub fn extend_intersect_with<F>(&self, what: &F, elements: &mut Vec<ElementId>)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+    {
+        self.rintersect_with(self.root, what, elements);
+    }
+
     fn rintersect_with<F>(&self, node: NodeId, what: &F, elements: &mut Vec<ElementId>)
     where
         F: Fn(&Aabb<U>) -> bool,
     {
-        let n = self.nodes[node];
-        match n.ntype {
-            NodeType::Empty => (),
+        // We use a heapless stack to loop through the nodes until we complete the cast however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
 
-            NodeType::Leaf(e) => {
-                let aabb = self.elements[e].position().unit_aabb();
-                if what(&aabb) {
-                    elements.push(e);
-                };
-            }
+                NodeType::Leaf(e) => {
+                    let aabb = self.elements[e].position().unit_aabb();
+                    if what(&aabb) {
+                        elements.push(e);
+                    };
+                }
 
-            NodeType::Branch(Branch { children, .. }) => {
-                if what(&n.aabb) {
-                    for child in children {
-                        self.rintersect_with(child, what, elements);
+                NodeType::Branch(Branch { children, .. }) => {
+                    if what(&n.aabb) {
+                        let mut iter = children.into_iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(child).is_err() {
+                                self.rintersect_with(child, what, elements);
+                                while let Some(child) = iter.next() {
+                                    self.rintersect_with(child, what, elements);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -194,22 +243,38 @@ where
         volume: &Volume,
         elements: &mut Vec<ElementId>,
     ) {
-        let n = self.nodes[node];
-        match n.ntype {
-            NodeType::Empty => (),
+        // We use a heapless stack to loop through the nodes until we complete the cast however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
 
-            NodeType::Leaf(e) => {
-                let aabb = self.elements[e].position().unit_aabb().into();
-                if volume.intersects(&aabb) {
-                    elements.push(e);
-                };
-            }
+                NodeType::Leaf(e) => {
+                    let aabb = self.elements[e].position().unit_aabb().into();
+                    if volume.intersects(&aabb) {
+                        elements.push(e);
+                    };
+                }
 
-            NodeType::Branch(Branch { children, .. }) => {
-                let aabb: Aabb3d = n.aabb.into();
+                NodeType::Branch(Branch { children, .. }) => {
+                    let aabb: Aabb3d = n.aabb.into();
 
-                if volume.intersects(&aabb) {
-                    children.map(|child| self.rintersect(child, volume, elements));
+                    if volume.intersects(&aabb) {
+                        let mut iter = children.into_iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(child).is_err() {
+                                self.rintersect(child, volume, elements);
+                                while let Some(child) = iter.next() {
+                                    self.rintersect(child, volume, elements);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
