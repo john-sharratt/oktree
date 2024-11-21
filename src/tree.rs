@@ -239,7 +239,7 @@ where
     /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// let c1_id = tree.insert(c1).unwrap();
     ///
-    /// assert_eq!(tree.remove(c1_id).is_ok(), true);
+    /// assert!(tree.remove(c1_id).is_ok());
     /// ```
     pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
         let node = self.map[element];
