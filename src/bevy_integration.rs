@@ -267,7 +267,7 @@ where
     pub fn intersect_with_for_each<F, F2>(&self, what: F, mut actor: F2)
     where
         F: Fn(&Aabb<U>) -> bool,
-        F2: FnMut(ElementId),
+        F2: FnMut(&T),
     {
         self.rintersect_with_for_each(self.root, &what, &mut actor);
     }
@@ -275,7 +275,7 @@ where
     fn rintersect_with_for_each<F, F2>(&self, node: NodeId, what: &F, actor: &mut F2)
     where
         F: Fn(&Aabb<U>) -> bool,
-        F2: FnMut(ElementId),
+        F2: FnMut(&T),
     {
         // We use a heapless stack to loop through the nodes until we complete the intersect however
         // if the stack becomes full then then we fallbackon recursive calls.
@@ -287,7 +287,8 @@ where
                 NodeType::Empty => (),
 
                 NodeType::Leaf(e) => {
-                    let aabb = self.elements[e].position().unit_aabb();
+                    let e = &self.elements[e];
+                    let aabb = e.position().unit_aabb();
                     if what(&aabb) {
                         actor(e);
                     };
