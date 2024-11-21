@@ -261,8 +261,8 @@ where
     /// let c1_id = tree.insert(c1).unwrap();
     ///
     /// let mut elements = Vec::new();
-    /// tree.intersect_with_for_each(|_| true, |e| elements.push(e) );
-    /// assert_eq!(elements, vec![c1_id]);
+    /// tree.intersect_with_for_each(|_| true, |e| elements.push(e.clone()) );
+    /// assert_eq!(elements, vec![c1]);
     /// ```
     pub fn intersect_with_for_each<F, F2>(&self, what: F, mut actor: F2)
     where
