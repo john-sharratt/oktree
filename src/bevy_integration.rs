@@ -144,7 +144,7 @@ where
                             // iteration) then we fallback to recursive calls.
                             if stack.push(child).is_err() {
                                 self.recursive_ray_cast(child, ray, hit);
-                                while let Some(child) = iter.next() {
+                                for child in iter.by_ref() {
                                     self.recursive_ray_cast(child, ray, hit);
                                 }
                             }
@@ -236,7 +236,7 @@ where
                             // iteration) then we fallback to recursive calls.
                             if stack.push(child).is_err() {
                                 self.rintersect_with(child, what, elements);
-                                while let Some(child) = iter.next() {
+                                for child in iter.by_ref() {
                                     self.rintersect_with(child, what, elements);
                                 }
                             }
@@ -302,7 +302,7 @@ where
                             // iteration) then we fallback to recursive calls.
                             if stack.push(child).is_err() {
                                 self.rintersect_with_for_each(child, what, actor);
-                                while let Some(child) = iter.next() {
+                                for child in iter.by_ref() {
                                     self.rintersect_with_for_each(child, what, actor);
                                 }
                             }
@@ -374,7 +374,7 @@ where
                             // iteration) then we fallback to recursive calls.
                             if stack.push(child).is_err() {
                                 self.rintersect(child, volume, elements);
-                                while let Some(child) = iter.next() {
+                                for child in iter.by_ref() {
                                     self.rintersect(child, volume, elements);
                                 }
                             }

@@ -568,7 +568,7 @@ impl<'pool, T> Iterator for PoolIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> DoubleEndedIterator for PoolIterator<'pool, T> {
+impl<T> DoubleEndedIterator for PoolIterator<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next_back()?;
@@ -579,7 +579,7 @@ impl<'pool, T> DoubleEndedIterator for PoolIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> ExactSizeIterator for PoolIterator<'pool, T> {
+impl<T> ExactSizeIterator for PoolIterator<'_, T> {
     fn len(&self) -> usize {
         self.inner.len() - self.garbage_len
     }
@@ -630,7 +630,7 @@ impl<'pool, T> Iterator for PoolElementIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> DoubleEndedIterator for PoolElementIterator<'pool, T> {
+impl<T> DoubleEndedIterator for PoolElementIterator<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next_back()?;
@@ -641,7 +641,7 @@ impl<'pool, T> DoubleEndedIterator for PoolElementIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> ExactSizeIterator for PoolElementIterator<'pool, T> {
+impl<T> ExactSizeIterator for PoolElementIterator<'_, T> {
     fn len(&self) -> usize {
         self.inner.len() - self.garbage_len
     }

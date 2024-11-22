@@ -333,7 +333,7 @@ where
         if self.map.is_garbaged(element) {
             None
         } else {
-            Some(self.map[element.into()])
+            Some(self.map[element])
         }
     }
 
@@ -342,7 +342,7 @@ where
         if self.map.is_garbaged(element) {
             None
         } else {
-            Some(self.nodes[self.map[element.into()]])
+            Some(self.nodes[self.map[element]])
         }
     }
 
@@ -366,10 +366,12 @@ where
     }
 
     /// Returns the number of actual elements in the tree
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.elements.len()
     }
 
+    #[inline(always)]
     /// Is the tree empty
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty()

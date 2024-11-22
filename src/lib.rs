@@ -221,12 +221,6 @@ where
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct NodeId(pub u32);
 
-impl From<NodeId> for ElementId {
-    fn from(value: NodeId) -> Self {
-        ElementId(value.0)
-    }
-}
-
 impl From<NodeId> for usize {
     fn from(value: NodeId) -> Self {
         value.0 as usize
