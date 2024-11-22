@@ -15,6 +15,7 @@ use crate::{
 /// [`PoolItem`] data structure that combines both the garbage flag
 /// and the actual item together for better cache locality.
 #[repr(align(8))]
+#[derive(Clone)]
 pub(crate) struct PoolItem<T> {
     pub(crate) item: T,
     pub(crate) garbage: bool,
@@ -27,37 +28,15 @@ impl<T> From<T> for PoolItem<T> {
         }
     }
 }
-impl<T> Clone for PoolItem<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        PoolItem {
-            item: self.item.clone(),
-            garbage: self.garbage,
-        }
-    }
-}
 
 /// [`Pool`] data structure.
 ///
 /// When element is removed no memory deallocation happens.
 /// Removed elements are only marked as deleted and their memory could be reused.  
+#[derive(Clone)]
 pub struct Pool<T> {
     pub(crate) vec: Vec<PoolItem<T>>,
     pub(crate) garbage: Vec<usize>,
-}
-
-impl<T> Clone for Pool<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            vec: self.vec.clone(),
-            garbage: self.garbage.clone(),
-        }
-    }
 }
 
 impl<U: Unsigned> Default for Pool<Node<U>> {
@@ -589,7 +568,7 @@ impl<'pool, T> Iterator for PoolIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> DoubleEndedIterator for PoolIterator<'pool, T> {
+impl<T> DoubleEndedIterator for PoolIterator<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next_back()?;
@@ -600,7 +579,7 @@ impl<'pool, T> DoubleEndedIterator for PoolIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> ExactSizeIterator for PoolIterator<'pool, T> {
+impl<T> ExactSizeIterator for PoolIterator<'_, T> {
     fn len(&self) -> usize {
         self.inner.len() - self.garbage_len
     }
@@ -651,7 +630,7 @@ impl<'pool, T> Iterator for PoolElementIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> DoubleEndedIterator for PoolElementIterator<'pool, T> {
+impl<T> DoubleEndedIterator for PoolElementIterator<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next_back()?;
@@ -662,7 +641,7 @@ impl<'pool, T> DoubleEndedIterator for PoolElementIterator<'pool, T> {
     }
 }
 
-impl<'pool, T> ExactSizeIterator for PoolElementIterator<'pool, T> {
+impl<T> ExactSizeIterator for PoolElementIterator<'_, T> {
     fn len(&self) -> usize {
         self.inner.len() - self.garbage_len
     }

@@ -15,7 +15,7 @@ use heapless::Vec as HVec;
 /// such as intersections, ray casting e.t.c
 /// All coordinates should be positive and integer ([`Unsigned`](num::Unsigned)),
 /// due to applied optimisations.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Octree<U, T>
 where
     U: Unsigned,
@@ -333,7 +333,7 @@ where
         if self.map.is_garbaged(element) {
             None
         } else {
-            Some(self.map[element.into()])
+            Some(self.map[element])
         }
     }
 
@@ -342,7 +342,7 @@ where
         if self.map.is_garbaged(element) {
             None
         } else {
-            Some(self.nodes[self.map[element.into()]])
+            Some(self.nodes[self.map[element]])
         }
     }
 
@@ -375,10 +375,12 @@ where
     }
 
     /// Returns the number of actual elements in the tree
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.elements.len()
     }
 
+    #[inline(always)]
     /// Is the tree empty
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty()
@@ -406,22 +408,6 @@ impl<U: Unsigned, T: Position<U = U>> std::iter::IntoIterator for Octree<U, T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.elements.into_iter()
-    }
-}
-
-impl<U, T> Clone for Octree<U, T>
-where
-    U: Unsigned,
-    T: Position<U = U> + Clone,
-{
-    fn clone(&self) -> Self {
-        Octree {
-            aabb: self.aabb,
-            elements: self.elements.clone(),
-            nodes: self.nodes.clone(),
-            map: self.map.clone(),
-            root: self.root,
-        }
     }
 }
 

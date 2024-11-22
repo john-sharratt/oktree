@@ -7,15 +7,16 @@
 //!
 //! Could be used with the Bevy game engine for fast processing of voxel data or as a standalone tree.
 //!
-//! ### Available methods:
+//! ## Available methods:
 //!
-//! - #### Unsigned operations
+//! - ### Unsigned operations
 //!
 //!   - [`Insertion`](tree::Octree::insert)
 //!   - [`Removing`](tree::Octree::remove)
+//!   - [`Upsert`](tree::Octree::upsert)
 //!   - [`Searching`](tree::Octree::find)
 //!
-//! - #### Floating point operations (Bevy integration)
+//! - ### Floating point operations (Bevy integration)
 //!
 //!   - [`Ray casting`](tree::Octree::ray_cast)
 //!   - [`Bouning sphere and bounding box intersection`](tree::Octree::intersect)
@@ -29,7 +30,7 @@
 //!
 //! Intersection methods are not available without this feature.
 //!
-//! ### Optimizations:
+//! ## Optimizations:
 //!
 //! - `Unsigned` arithmetics, bitwise operations.
 //! - Tree structure is represented by flat, reusable [`Pool`](`pool::Pool`). Removed data is marked only.
@@ -43,12 +44,12 @@
 //!
 //! | Operation           | Quantity                         | Time  |
 //! | ------------------- | -------------------------------- | ----- |
-//! | insertion           | 65536 cells                      | 25 ms |
-//! | removing            | 65536 cells                      | 12 ms |
-//! | find                | 65536 searches in 65536 cells    | 13 ms |
-//! | ray intersection    | 4096 rays against 65536 cells    | 35 ms |
-//! | sphere intersection | 4096 spheres against 65536 cells | 8 ms  |
-//! | box intersection    | 4096 boxes against 65536 cells   | 6 ms  |
+//! | insertion           | 65536 cells                      | 14 ms |
+//! | removing            | 65536 cells                      | 7 ms  |
+//! | find                | 65536 searches in 65536 cells    | 10 ms |
+//! | ray intersection    | 4096 rays against 65536 cells    | 45 ms |
+//! | sphere intersection | 4096 spheres against 65536 cells | 10 ms |
+//! | box intersection    | 4096 boxes against 65536 cells   | 9 ms  |
 //!
 //! Run benchmark:
 //!
@@ -147,6 +148,40 @@
 //! ```sh
 //! cargo run --release --example bevy_tree --all-features
 //! ```
+//!
+//! ## Check yourself list:
+//!
+//! Feature and pull requests are welcomed.
+//!
+//! - tests
+//!
+//!   ```sh
+//!   cargo test --all-targets --all-features --release
+//!   ```
+//!
+//! - clippy
+//!
+//!   ```sh
+//!   cargo clippy --all-targets --all-features
+//!   ```
+//!
+//! - examples
+//!
+//!   ```sh
+//!   cargo run --all-features --example simple
+//!   cargo run --all-features --example bevy_tree
+//!   ```
+//!
+//! - benchmark
+//!
+//!   ```sh
+//!   cargo bench --all-features
+//!   ```
+//!
+//! - docs
+//!   ```sh
+//!   cargo doc --no-deps --open --all-features
+//!   ```
 
 #![allow(dead_code)]
 
@@ -220,12 +255,6 @@ where
 /// ```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct NodeId(pub u32);
-
-impl From<NodeId> for ElementId {
-    fn from(value: NodeId) -> Self {
-        ElementId(value.0)
-    }
-}
 
 impl From<NodeId> for usize {
     fn from(value: NodeId) -> Self {
