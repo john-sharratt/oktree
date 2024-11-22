@@ -42,7 +42,7 @@ fn setup(mut commands: Commands) {
 }
 
 fn draw_nodes(mut gizmos: Gizmos, tree: Res<Tree>) {
-    for node in tree.0.nodes.iter() {
+    for node in tree.0.iter_nodes() {
         let scale = node.aabb.size() as f32;
         let transform =
             Transform::from_translation(node.aabb.center().into()).with_scale(Vec3::splat(scale));
@@ -56,7 +56,7 @@ fn draw_nodes(mut gizmos: Gizmos, tree: Res<Tree>) {
 }
 
 fn draw_elements(mut gizmos: Gizmos, tree: Res<Tree>) {
-    for element in tree.0.elements.iter() {
+    for element in tree.0.iter() {
         gizmos.sphere(element.position.into(), Quat::IDENTITY, 1.0, RED);
     }
 }

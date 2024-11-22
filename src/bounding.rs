@@ -10,9 +10,10 @@ use std::{
 
 use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
 
-use crate::TreeError;
+use crate::{Position, TreeError};
 
-pub trait Unsigned = Integer
+pub trait Unsigned:
+    Integer
     + NumUnsigned
     + NumCast
     + Shr<Self, Output = Self>
@@ -20,13 +21,21 @@ pub trait Unsigned = Integer
     + Copy
     + Display
     + Debug
-    + Default;
+    + Default
+{
+}
+impl Unsigned for u8 {}
+impl Unsigned for u16 {}
+impl Unsigned for u32 {}
+impl Unsigned for u64 {}
+impl Unsigned for u128 {}
+impl Unsigned for usize {}
 
 /// Tree Unsigned Vec3
 ///
 /// Inner typy shuld be any [`Unsigned`](num::Unsigned):
 /// `u8`, `u16`, `u32`, `u64`, `u128`, `usize`.
-#[derive(Default, Debug, PartialEq, Clone, Copy)]
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct TUVec3<U: Unsigned> {
     pub x: U,
     pub y: U,
@@ -280,5 +289,75 @@ mod tests {
 
         // 7 is not the power of 2
         assert!(Aabb::new(TUVec3::splat(16u16), 7).is_err());
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub struct TUVec3u8(pub TUVec3<u8>);
+impl TUVec3u8 {
+    pub fn new(x: u8, y: u8, z: u8) -> Self {
+        TUVec3u8(TUVec3::new(x, y, z))
+    }
+}
+impl Position for TUVec3u8 {
+    type U = u8;
+    fn position(&self) -> TUVec3<u8> {
+        self.0
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub struct TUVec3u16(pub TUVec3<u16>);
+impl TUVec3u16 {
+    pub fn new(x: u16, y: u16, z: u16) -> Self {
+        TUVec3u16(TUVec3::new(x, y, z))
+    }
+}
+impl Position for TUVec3u16 {
+    type U = u16;
+    fn position(&self) -> TUVec3<u16> {
+        self.0
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub struct TUVec3u32(pub TUVec3<u32>);
+impl TUVec3u32 {
+    pub fn new(x: u32, y: u32, z: u32) -> Self {
+        TUVec3u32(TUVec3::new(x, y, z))
+    }
+}
+impl Position for TUVec3u32 {
+    type U = u32;
+    fn position(&self) -> TUVec3<u32> {
+        self.0
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub struct TUVec3u64(pub TUVec3<u64>);
+impl TUVec3u64 {
+    pub fn new(x: u64, y: u64, z: u64) -> Self {
+        TUVec3u64(TUVec3::new(x, y, z))
+    }
+}
+impl Position for TUVec3u64 {
+    type U = u64;
+    fn position(&self) -> TUVec3<u64> {
+        self.0
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub struct TUVec3u128(pub TUVec3<u128>);
+impl TUVec3u128 {
+    pub fn new(x: u128, y: u128, z: u128) -> Self {
+        TUVec3u128(TUVec3::new(x, y, z))
+    }
+}
+impl Position for TUVec3u128 {
+    type U = u128;
+    fn position(&self) -> TUVec3<u128> {
+        self.0
     }
 }

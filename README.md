@@ -24,7 +24,7 @@ Could be used with the Bevy game engine for fast processing of voxel data or as 
 
 To enable bevy integrations:
 
-```
+```toml
 [dependencies]
 oktree = { version = "0.2.0", features = ["bevy"] }
 ```
@@ -42,14 +42,14 @@ Compensation for the inconvenience is perfomance.
 
 Octree dimensions: `4096x4096x4096`
 
-| Operation           | Quantity                         | Time  |
-| ------------------- | -------------------------------- | ----- |
-| insertion           | 65536 cells                      | 25 ms |
-| removing            | 65536 cells                      | 12 ms |
-| find                | 65536 searches in 65536 cells    | 13 ms |
-| ray intersection    | 4096 rays against 65536 cells    | 35 ms |
-| sphere intersection | 4096 spheres against 65536 cells | 8 ms  |
-| box intersection    | 4096 boxes against 65536 cells   | 6 ms  |
+| Operation           | Quantity                         | Time    |
+| ------------------- | -------------------------------- | ------- |
+| insertion           | 65536 cells                      | 7.30 ms |
+| removing            | 65536 cells                      | 3.63 ms |
+| find                | 65536 searches in 65536 cells    | 5.63 ms |
+| ray intersection    | 4096 rays against 65536 cells    | 19.1 ms |
+| sphere intersection | 4096 spheres against 65536 cells | 4.71 ms |
+| box intersection    | 4096 boxes against 65536 cells   | 4.47 ms |
 
 Run benchmark:
 

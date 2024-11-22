@@ -98,18 +98,19 @@ impl Branch {
     }
 
     pub(crate) fn increment(&mut self) {
-        self.filled = self.filled.strict_add(1);
+        self.filled += 1;
         debug_assert!(self.filled <= 8);
     }
 
     pub(crate) fn decrement(&mut self) {
-        self.filled = self.filled.strict_sub(1);
+        self.filled -= 1;
     }
 
     /// Search which octant is suitable for the position.
     ///
     /// * `position`: Element's position
     /// * `center`: center of the current node's [`Aabb`]
+    #[inline(always)]
     pub fn find_child<U: Unsigned>(&self, position: TUVec3<U>, center: TUVec3<U>) -> NodeId {
         let x = if position.x < center.x { 0 } else { 1 };
         let y = if position.y < center.y { 0 } else { 1 };

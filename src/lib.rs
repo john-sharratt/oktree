@@ -22,7 +22,7 @@
 //!
 //! To enable bevy integrations:
 //!
-//! ```
+//! ```toml
 //! [dependencies]
 //! oktree = { version = "0.2.0", features = ["bevy"] }
 //! ```
@@ -52,7 +52,7 @@
 //!
 //! Run benchmark:
 //!
-//! ```
+//! ```sh
 //! cargo bench --all-features
 //! ```
 //!
@@ -144,13 +144,11 @@
 //!
 //! Run bevy visual example:
 //!
-//! ```
+//! ```sh
 //! cargo run --release --example bevy_tree --all-features
 //! ```
 
 #![allow(dead_code)]
-#![feature(strict_overflow_ops)]
-#![feature(trait_alias)]
 
 #[cfg(feature = "bevy")]
 pub mod bevy_integration;
@@ -162,8 +160,11 @@ pub mod tree;
 
 use bounding::{TUVec3, Unsigned};
 use std::{
+    borrow::Cow,
     error::Error,
     fmt::{self},
+    ops::Deref,
+    sync::Arc,
 };
 
 // Implement on stored type to inform a tree
@@ -174,13 +175,57 @@ pub trait Position {
     fn position(&self) -> TUVec3<Self::U>;
 }
 
+impl<T> Position for Cow<'_, T>
+where
+    T: Position + Clone,
+{
+    type U = T::U;
+
+    fn position(&self) -> TUVec3<Self::U> {
+        self.deref().position()
+    }
+}
+
+impl<T> Position for Arc<T>
+where
+    T: Position,
+{
+    type U = T::U;
+
+    fn position(&self) -> TUVec3<Self::U> {
+        self.deref().position()
+    }
+}
+
+impl<T> Position for Box<T>
+where
+    T: Position,
+{
+    type U = T::U;
+
+    fn position(&self) -> TUVec3<Self::U> {
+        self.deref().position()
+    }
+}
+
 /// Index [`tree.nodes`](pool::Pool) with it.
 ///
-/// ```no_run
-/// let node: Node<u16> = tree.nodes[NodeId(0)]
+/// ```rust
+/// use oktree::prelude::*;
+/// use oktree::node::Node;
+///
+/// let mut tree = Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(16), 16u16).unwrap(), 10);
+/// tree.insert(TUVec3u16::new(5, 5, 5)).unwrap();
+/// let node: Node<u16> = tree.get_node(ElementId(0)).unwrap();
 /// ```
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct NodeId(pub u32);
+
+impl From<NodeId> for ElementId {
+    fn from(value: NodeId) -> Self {
+        ElementId(value.0)
+    }
+}
 
 impl From<NodeId> for usize {
     fn from(value: NodeId) -> Self {
@@ -203,10 +248,14 @@ impl fmt::Display for NodeId {
 /// Index [`tree.elements`](pool::Pool) with it.
 /// Stored type element will be returned.
 ///
-/// ```no_run
-/// let element = tree.elements[ElementId(0)]
+/// ```rust
+/// use oktree::prelude::*;
+///
+/// let mut tree = Octree::from_aabb_with_capacity(Aabb::new(TUVec3::splat(16), 16u16).unwrap(), 10);
+/// tree.insert(TUVec3u16::new(5, 5, 5)).unwrap();
+/// let element: &TUVec3u16 = tree.get_element(ElementId(0)).unwrap();
 /// ```
-#[derive(Default, Clone, Copy, PartialEq, Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct ElementId(pub u32);
 
 impl From<ElementId> for usize {
@@ -435,7 +484,7 @@ mod tests {
         let c5 = DummyCell::new(TUVec3::new(6, 7, 1));
         assert_eq!(tree.insert(c5), Ok(ElementId(4)));
 
-        assert_eq!(tree.get_node(ElementId(0)), Some(NodeId(9)));
+        assert_eq!(tree.get_node_id(ElementId(0)), Some(NodeId(9)));
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
         assert_eq!(tree.nodes[1.into()].fullness(), Ok(2));
@@ -443,7 +492,7 @@ mod tests {
 
         assert_eq!(tree.remove(0.into()), Ok(()));
 
-        assert_eq!(tree.get_node(ElementId(0)), None);
+        assert_eq!(tree.get_node_id(ElementId(0)), None);
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(1.into()));
@@ -451,7 +500,7 @@ mod tests {
 
         assert_eq!(tree.remove(1.into()), Ok(()));
 
-        assert_eq!(tree.get_node(ElementId(1)), None);
+        assert_eq!(tree.get_node_id(ElementId(1)), None);
 
         assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);
@@ -497,7 +546,7 @@ mod tests {
         assert!(tree.elements.len() > (RANGE as f32 * 0.98) as usize);
         assert!(tree.map.len() > (RANGE as f32 * 0.98) as usize);
 
-        for element in 0..tree.elements.len() {
+        for element in 0..tree.len() {
             let e = ElementId(element as u32);
             let pos = tree.elements[e].position;
             assert_eq!(tree.find(pos), Some(e));

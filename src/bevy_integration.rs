@@ -5,38 +5,63 @@
 //! ### Intersections:
 //! - [`ray`](RayCast3d) [intersection](Octree::ray_cast)
 //!
-//! ```no_run
-//! let ray = RayCast3d::new(Vec3A::new(7.0, 5.9, 1.01), Dir3A::NEG_X, 10.0);
+//! ```rust
+//! use oktree::prelude::*;
+//! use bevy::prelude::*;
+//! use bevy::math::{bounding::RayCast3d, Vec3A};
+//!
+//! let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+//! tree.insert(TUVec3u8::new(1, 1, 1));
+//!
+//! let ray = RayCast3d::new(Vec3A::new(5.0, 1.5, 1.5), Dir3A::NEG_X, 10.0);
 //! assert_eq!(
 //!   tree.ray_cast(&ray),
 //!   HitResult {
-//!     element: Some(1.into()),
-//!     distance: 5.0
+//!     element: Some(0.into()),
+//!     distance: 3.0
 //!   }
 //! );
 //! ```
 //!
 //! - [`Sphere`](BoundingSphere) [intersection](Octree::intersect)
 //!
-//! ```no_run
+//! ```rust
+//! use oktree::prelude::*;
+//! use bevy::prelude::*;
+//! use bevy::math::bounding::BoundingSphere;
+//!
+//! let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+//! tree.insert(TUVec3u8::new(1, 1, 1));
+//!
 //! let sphere = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 10.0);
 //! assert_eq!(
 //!   tree.intersect(&sphere),
-//!   vec![ElementId(0), ElementId(1), ElementId(2)]
+//!   vec![ElementId(0)]
 //! );
 //! ```
 //!
 //! - [`Aabb`](Aabb3d) [intersection](Octree::intersect)
 //!
-//! ```no_run
+//! ```rust
+//! use oktree::prelude::*;
+//! use bevy::prelude::*;
+//! use bevy::math::{bounding::Aabb3d, Vec3};
+//!
+//!  let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+//! tree.insert(TUVec3u8::new(1, 1, 1));
+//! tree.insert(TUVec3u8::new(2, 2, 2));
+//!
 //! let aabb = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
-//! assert_eq!(tree.intersect(&aabb), vec![ElementId(0), ElementId(1)]);
+//! let mut test = tree.intersect(&aabb);
+//! test.sort();
+//! assert_eq!(test, vec![ElementId(0), ElementId(1)]);
 //! ```
 
 use bevy::math::{
     bounding::{Aabb3d, BoundingSphere, IntersectsVolume, RayCast3d},
     Vec3, Vec3A,
 };
+use heapless::Vec as HVec;
 use num::cast;
 
 use crate::{
@@ -56,10 +81,14 @@ where
     /// Returns a [`HitResult`] with [`ElementId`] and the doistance to
     /// the intersection if any.
     ///
-    /// ```no_run
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    /// use bevy::math::{bounding::RayCast3d, Vec3A};
     ///
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// let c1_id = tree.insert(c1).unwrap();
     ///
     /// let ray = RayCast3d::new(Vec3A::new(5.0, 1.5, 1.5), Dir3A::NEG_X, 10.0);
@@ -68,7 +97,7 @@ where
     ///     tree.ray_cast(&ray),
     ///     HitResult {
     ///         element: Some(c1_id),
-    ///         distance: 4.0
+    ///         distance: 3.0
     ///     }
     /// )
     /// ```
@@ -79,37 +108,206 @@ where
     }
 
     fn recursive_ray_cast(&self, node: NodeId, ray: &RayCast3d, hit: &mut HitResult) {
-        let n = &self.nodes[node];
+        // We use a heapless stack to loop through the nodes until we complete the cast however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = &self.nodes[node];
+            let aabb: Aabb3d = n.aabb.into();
+            if ray.intersects(&aabb) {
+                match n.ntype {
+                    NodeType::Empty => (),
 
-        if n.ntype == NodeType::Empty {
-            return;
-        }
-
-        let aabb: Aabb3d = n.aabb.into();
-        if ray.intersects(&aabb) {
-            match n.ntype {
-                NodeType::Empty => (),
-
-                NodeType::Leaf(element) => {
-                    let aabb = self.elements[element].position().unit_aabb().into();
-                    if let Some(dist) = ray.aabb_intersection_at(&aabb) {
-                        match hit.element {
-                            Some(_) => {
-                                if hit.distance > dist {
+                    NodeType::Leaf(element) => {
+                        let aabb = self.elements[element].position().unit_aabb().into();
+                        if let Some(dist) = ray.aabb_intersection_at(&aabb) {
+                            match hit.element {
+                                Some(_) => {
+                                    if hit.distance > dist {
+                                        hit.element = Some(element);
+                                        hit.distance = dist;
+                                    }
+                                }
+                                None => {
                                     hit.element = Some(element);
                                     hit.distance = dist;
                                 }
                             }
-                            None => {
-                                hit.element = Some(element);
-                                hit.distance = dist;
+                        }
+                    }
+
+                    NodeType::Branch(Branch { children, .. }) => {
+                        let mut iter = children.into_iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(child).is_err() {
+                                self.recursive_ray_cast(child, ray, hit);
+                                while let Some(child) = iter.next() {
+                                    self.recursive_ray_cast(child, ray, hit);
+                                }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /// Intersect [`Octree`] with a custom intersection closure.
+    ///
+    /// Returns the [`vector`](Vec) of [`elements`](ElementId),
+    /// intersected by volume.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// // Bounding box intersection
+    /// assert_eq!(tree.intersect_with(|_| true), vec![c1_id]);
+    /// ```
+    pub fn intersect_with<F>(&self, what: F) -> Vec<ElementId>
+    where
+        F: Fn(&Aabb<U>) -> bool,
+    {
+        let mut elements = Vec::with_capacity(10);
+        self.rintersect_with(self.root, &what, &mut elements);
+        elements
+    }
+
+    /// Intersect [`Octree`] with a custom intersection closure reusing a
+    /// supplied [`vector`](Vec) rather than allocating a new one.
+    ///
+    /// Returns the [`vector`](Vec) of [`elements`](ElementId),
+    /// intersected by volume.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// // Bounding box intersection
+    /// let mut elements = Vec::new();
+    /// tree.extend_intersect_with(|_| true, &mut elements);
+    /// assert_eq!(elements, vec![c1_id]);
+    /// ```
+    pub fn extend_intersect_with<F>(&self, what: F, elements: &mut Vec<ElementId>)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+    {
+        self.rintersect_with(self.root, &what, elements);
+    }
+
+    fn rintersect_with<F>(&self, node: NodeId, what: &F, elements: &mut Vec<ElementId>)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+    {
+        // We use a heapless stack to loop through the nodes until we complete the intersect however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
+
+                NodeType::Leaf(e) => {
+                    let aabb = self.elements[e].position().unit_aabb();
+                    if what(&aabb) {
+                        elements.push(e);
+                    };
+                }
 
                 NodeType::Branch(Branch { children, .. }) => {
-                    children.map(|child| self.recursive_ray_cast(child, ray, hit));
+                    if what(&n.aabb) {
+                        let mut iter = children.into_iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(child).is_err() {
+                                self.rintersect_with(child, what, elements);
+                                while let Some(child) = iter.next() {
+                                    self.rintersect_with(child, what, elements);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Intersect [`Octree`] with a custom intersection closure reusing a
+    /// supplied [`vector`](Vec) rather than allocating a new one. Each element
+    /// that intersects with the volume is passed to the supplied closure.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// let mut elements = Vec::new();
+    /// tree.intersect_with_for_each(|_| true, |e| elements.push(e.clone()) );
+    /// assert_eq!(elements, vec![c1]);
+    /// ```
+    pub fn intersect_with_for_each<F, F2>(&self, what: F, mut actor: F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(&T),
+    {
+        self.rintersect_with_for_each(self.root, &what, &mut actor);
+    }
+
+    fn rintersect_with_for_each<F, F2>(&self, node: NodeId, what: &F, actor: &mut F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(&T),
+    {
+        // We use a heapless stack to loop through the nodes until we complete the intersect however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
+
+                NodeType::Leaf(e) => {
+                    let e = &self.elements[e];
+                    let aabb = e.position().unit_aabb();
+                    if what(&aabb) {
+                        actor(e);
+                    };
+                }
+
+                NodeType::Branch(Branch { children, .. }) => {
+                    if what(&n.aabb) {
+                        let mut iter = children.into_iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(child).is_err() {
+                                self.rintersect_with_for_each(child, what, actor);
+                                while let Some(child) = iter.next() {
+                                    self.rintersect_with_for_each(child, what, actor);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -120,10 +318,14 @@ where
     /// Returns the [`vector`](Vec) of [`elements`](ElementId),
     /// intersected by volume.
     ///
-    /// ```no_run
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    /// use bevy::math::{bounding::{BoundingSphere, Aabb3d}, Vec3};
     ///
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// let c1_id = tree.insert(c1).unwrap();
     ///
     /// // Bounding box intersection
@@ -146,22 +348,38 @@ where
         volume: &Volume,
         elements: &mut Vec<ElementId>,
     ) {
-        let n = self.nodes[node];
-        match n.ntype {
-            NodeType::Empty => (),
+        // We use a heapless stack to loop through the nodes until we complete the cast however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
 
-            NodeType::Leaf(e) => {
-                let aabb = self.elements[e].position().unit_aabb().into();
-                if volume.intersects(&aabb) {
-                    elements.push(e);
-                };
-            }
+                NodeType::Leaf(e) => {
+                    let aabb = self.elements[e].position().unit_aabb().into();
+                    if volume.intersects(&aabb) {
+                        elements.push(e);
+                    };
+                }
 
-            NodeType::Branch(Branch { children, .. }) => {
-                let aabb: Aabb3d = n.aabb.into();
+                NodeType::Branch(Branch { children, .. }) => {
+                    let aabb: Aabb3d = n.aabb.into();
 
-                if volume.intersects(&aabb) {
-                    children.map(|child| self.rintersect(child, volume, elements));
+                    if volume.intersects(&aabb) {
+                        let mut iter = children.into_iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(child).is_err() {
+                                self.rintersect(child, volume, elements);
+                                while let Some(child) = iter.next() {
+                                    self.rintersect(child, volume, elements);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -423,27 +641,33 @@ mod tests {
         assert_eq!(tree.insert(c3), Ok(ElementId(2)));
 
         let box1 = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(10.0));
-        assert_eq!(
-            tree.intersect(&box1),
-            vec![ElementId(0), ElementId(1), ElementId(2)]
-        );
+        let mut test = tree.intersect(&box1);
+        test.sort();
+        assert_eq!(test, vec![ElementId(0), ElementId(1), ElementId(2)]);
 
         let box2 = Aabb3d::new(Vec3::new(0.0, 0.0, 0.0), Vec3::splat(5.0));
-        assert_eq!(tree.intersect(&box2), vec![ElementId(0), ElementId(1)]);
+        let mut test = tree.intersect(&box2);
+        test.sort();
+        assert_eq!(test, vec![ElementId(0), ElementId(1)]);
 
         let box3 = Aabb3d::new(Vec3::new(10.0, 0.0, 10.0), Vec3::splat(5.0));
-        assert_eq!(tree.intersect(&box3), vec![]);
+        let mut test = tree.intersect(&box3);
+        test.sort();
+        assert_eq!(test, vec![]);
 
         let sphere1 = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 10.0);
-        assert_eq!(
-            tree.intersect(&sphere1),
-            vec![ElementId(0), ElementId(1), ElementId(2)]
-        );
+        let mut test = tree.intersect(&sphere1);
+        test.sort();
+        assert_eq!(test, vec![ElementId(0), ElementId(1), ElementId(2)]);
 
         let sphere2 = BoundingSphere::new(Vec3::new(0.0, 0.0, 0.0), 6.0);
-        assert_eq!(tree.intersect(&sphere2), vec![ElementId(0), ElementId(1)]);
+        let mut test = tree.intersect(&sphere2);
+        test.sort();
+        assert_eq!(test, vec![ElementId(0), ElementId(1)]);
 
         let sphere3 = BoundingSphere::new(Vec3::new(10.0, 0.0, 10.0), 5.0);
-        assert_eq!(tree.intersect(&sphere3), vec![]);
+        let mut test = tree.intersect(&sphere3);
+        test.sort();
+        assert_eq!(test, vec![]);
     }
 }

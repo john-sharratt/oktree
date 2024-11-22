@@ -3,7 +3,7 @@
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},
-    pool::Pool,
+    pool::{Pool, PoolElementIterator, PoolIntoIterator, PoolIterator},
     ElementId, NodeId, Position, TreeError,
 };
 
@@ -21,18 +21,21 @@ where
     U: Unsigned,
     T: Position<U = U>,
 {
+    /// aabb used for clearing the octree
+    aabb: Option<Aabb<U>>,
+
     /// [`Pool`] of stored elements. Access it by [`ElementId`]
-    pub elements: Pool<T>,
+    pub(crate) elements: Pool<T>,
 
     /// [`Pool`] of tree [`Nodes`](crate::node::Node). Access it by [`NodeId`]
-    pub nodes: Pool<Node<U>>,
+    pub(crate) nodes: Pool<Node<U>>,
 
     /// Every element caches its' [`NodeId`].
     /// Drastically speedup the elements removal.
     /// Access it by [`ElementId`]
-    pub map: Pool<NodeId>,
+    pub(crate) map: Pool<NodeId>,
 
-    pub root: NodeId,
+    pub(crate) root: NodeId,
 }
 
 impl<U, T> Octree<U, T>
@@ -46,6 +49,7 @@ where
     /// The root node will adopt aabb's dimensions.
     pub fn from_aabb(aabb: Aabb<U>) -> Self {
         Octree {
+            aabb: Some(aabb),
             elements: Default::default(),
             nodes: Pool::from_aabb(aabb),
             map: Default::default(),
@@ -58,6 +62,7 @@ where
     /// Helps to reduce the amount of the memory reallocations.
     pub fn with_capacity(capacity: usize) -> Self {
         Octree {
+            aabb: None,
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::with_capacity(capacity),
             map: Pool::<NodeId>::with_capacity(capacity),
@@ -72,6 +77,7 @@ where
     /// The root node will adopt aabb's dimensions.
     pub fn from_aabb_with_capacity(aabb: Aabb<U>, capacity: usize) -> Self {
         Octree {
+            aabb: Some(aabb),
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::from_aabb_with_capacity(aabb, capacity),
             map: Pool::<NodeId>::with_capacity(capacity),
@@ -84,9 +90,11 @@ where
     /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
     /// Returns inserted element's [`id`](ElementId)
     ///
-    /// ```no_run
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// let c1_id = tree.insert(c1).unwrap();
     ///
     /// assert_eq!(c1_id, ElementId(0))
@@ -194,18 +202,44 @@ where
         Ok(())
     }
 
+    /// Upserts an element into a tree.
+    ///
+    /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
+    /// Returns inserted element's [`id`](ElementId)
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    ///
+    /// let c1_id = tree.upsert(c1).unwrap();
+    /// assert_eq!(c1_id, ElementId(0));
+    ///
+    /// let c1_id = tree.upsert(c1).unwrap();
+    /// assert_eq!(c1_id, ElementId(0));
+    /// ```
+    pub fn upsert(&mut self, elem: T) -> Result<ElementId, TreeError> {
+        if let Some(existing) = self.find(elem.position()) {
+            self.remove(existing)?;
+        }
+        self.insert(elem)
+    }
+
     /// Remove an element from the tree.
     ///
     /// Recursively collapse an empty [`nodes`](crate::node::Node).
     /// No memory deallocaton happening.
     /// Element is only marked as removed and could be reused.
     ///
-    /// ```no_run
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// let c1_id = tree.insert(c1).unwrap();
     ///
-    /// assert_eq!(tree.remove(c1_id).is_ok())
+    /// assert!(tree.remove(c1_id).is_ok());
     /// ```
     pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
         let node = self.map[element];
@@ -228,16 +262,41 @@ where
         }
     }
 
+    /// Clear all the elements in the octree and reset it to the initial state.
+    ///
+    /// The capacity of the octree is preserved and thus the octree can be immediately
+    /// reused for new elements without causing any memory reallocations.
+    pub fn clear(&mut self) {
+        self.elements.clear();
+        self.map.clear();
+        if let Some(aabb) = self.aabb {
+            self.nodes.clear_with_aabb(aabb);
+        } else {
+            self.nodes.clear();
+        }
+        self.root = Default::default();
+    }
+
+    /// Restores all the garbage elements back to real elements. Effectively
+    /// this is a rollback of all the remove operations that happened
+    pub fn restore_garbage(&mut self) {
+        self.elements.restore_garbage();
+        self.nodes.restore_garbage();
+        self.map.restore_garbage();
+    }
+
     /// Search for the element at the [`point`](TUVec3)
     ///
     /// Returns element's [`id`](ElementId) or [`None`] if elements if not found.
     ///
-    /// ```no_run
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16));
-    /// let c1 = DummyCell::new(TUVec3::new(1u8, 1, 1));
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
     /// tree.insert(c1).unwrap();
     ///
-    /// let c2 = DummyCell::new(TUVec3::new(4, 5, 6));
+    /// let c2 = TUVec3u8::new(4, 5, 6);
     /// let eid = tree.insert(c2).unwrap();
     ///
     /// assert_eq!(tree.find(TUVec3::new(4, 5, 6)), Some(eid));
@@ -247,50 +306,113 @@ where
         self.rfind(self.root, point)
     }
 
-    fn rfind(&self, node: NodeId, point: TUVec3<U>) -> Option<ElementId> {
-        let ntype = self.nodes[node].ntype;
-        match ntype {
-            NodeType::Empty => None,
+    fn rfind(&self, mut node: NodeId, point: TUVec3<U>) -> Option<ElementId> {
+        loop {
+            let ntype = self.nodes[node].ntype;
+            return match ntype {
+                NodeType::Empty => None,
 
-            NodeType::Leaf(e) => {
-                if self.elements[e].position() == point {
-                    Some(e)
-                } else {
-                    None
+                NodeType::Leaf(e) => {
+                    if self.elements[e].position() == point {
+                        Some(e)
+                    } else {
+                        None
+                    }
                 }
-            }
 
-            NodeType::Branch(ref branch) => {
-                let child = branch.find_child(point, self.nodes[node].aabb.center());
-                self.rfind(child, point)
-            }
+                NodeType::Branch(ref branch) => {
+                    node = branch.find_child(point, self.nodes[node].aabb.center());
+                    continue;
+                }
+            };
         }
     }
 
     /// Returns the node's [`id`](NodeId) containing the element if element exists and not garbaged.
-    pub fn get_node(&self, element: ElementId) -> Option<NodeId> {
+    pub fn get_node_id(&self, element: ElementId) -> Option<NodeId> {
         if self.map.is_garbaged(element) {
             None
         } else {
-            Some(self.map[element])
+            Some(self.map[element.into()])
+        }
+    }
+
+    /// Returns the node's [`id`](NodeId) containing the element if element exists and not garbaged.
+    pub fn get_node(&self, element: ElementId) -> Option<Node<U>> {
+        if self.map.is_garbaged(element) {
+            None
+        } else {
+            Some(self.nodes[self.map[element.into()]])
+        }
+    }
+
+    /// Returns the element if element exists and not garbaged.
+    pub fn get_element(&self, element: ElementId) -> Option<&T> {
+        if self.elements.is_garbaged(element) {
+            None
+        } else {
+            Some(&self.elements[element])
         }
     }
 
     /// Consumes a tree, converting it into a [`vector`](Vec).
     pub fn to_vec(self) -> Vec<T> {
-        let garbage = self.elements.garbage;
         self.elements
             .vec
             .into_iter()
-            .enumerate()
-            .filter_map(|(i, element)| {
-                if garbage.contains(&i) {
-                    None
-                } else {
-                    Some(element)
-                }
-            })
+            .filter(|e| !e.garbage)
+            .map(|e| e.item)
             .collect()
+    }
+
+    /// Returns the number of actual elements in the tree
+    pub fn len(&self) -> usize {
+        self.elements.len()
+    }
+
+    /// Is the tree empty
+    pub fn is_empty(&self) -> bool {
+        self.elements.is_empty()
+    }
+
+    /// Returns an iterator over the elements in the tree.
+    pub fn iter(&self) -> PoolIterator<'_, T> {
+        self.elements.iter()
+    }
+
+    /// Returns an iterator over the nodes in the tree.
+    pub fn iter_nodes(&self) -> PoolIterator<Node<U>> {
+        self.nodes.iter()
+    }
+
+    /// Returns an iterator over the elements in the tree.
+    pub fn iter_elements(&self) -> PoolElementIterator<'_, T> {
+        self.elements.iter_elements()
+    }
+}
+
+impl<U: Unsigned, T: Position<U = U>> std::iter::IntoIterator for Octree<U, T> {
+    type Item = T;
+    type IntoIter = PoolIntoIterator<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.elements.into_iter()
+    }
+}
+
+impl<U, T> Clone for Octree<U, T>
+where
+    U: Unsigned,
+    T: Position<U = U> + Clone,
+{
+    fn clone(&self) -> Self {
+        Octree {
+            aabb: self.aabb,
+            elements: self.elements.clone(),
+            nodes: self.nodes.clone(),
+            map: self.map.clone(),
+            root: self.root,
+        }
     }
 }
 
