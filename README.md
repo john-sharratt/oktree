@@ -9,15 +9,16 @@ Fast octree implementation.
 
 Could be used with the Bevy game engine for fast processing of voxel data or as a standalone tree.
 
-### Available methods:
+## Available methods:
 
-- #### Unsigned operations
+- ### Unsigned operations
 
   - [`Insertion`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.insert)
   - [`Removing`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.remove)
+  - [`Upsert`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.upsert)
   - [`Searching`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.find)
 
-- #### Floating point operations (Bevy integration)
+- ### Floating point operations (Bevy integration)
 
   - [`Ray casting`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.ray_cast)
   - [`Bouning sphere and bounding box intersection`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.intersect)
@@ -42,18 +43,18 @@ Compensation for the inconvenience is perfomance.
 
 Octree dimensions: `4096x4096x4096`
 
-| Operation           | Quantity                         | Time    |
-| ------------------- | -------------------------------- | ------- |
-| insertion           | 65536 cells                      | 7.30 ms |
-| removing            | 65536 cells                      | 3.63 ms |
-| find                | 65536 searches in 65536 cells    | 5.63 ms |
-| ray intersection    | 4096 rays against 65536 cells    | 19.1 ms |
-| sphere intersection | 4096 spheres against 65536 cells | 4.71 ms |
-| box intersection    | 4096 boxes against 65536 cells   | 4.47 ms |
+| Operation           | Quantity                         | Time  |
+| ------------------- | -------------------------------- | ----- |
+| insertion           | 65536 cells                      | 14 ms |
+| removing            | 65536 cells                      | 7 ms  |
+| find                | 65536 searches in 65536 cells    | 10 ms |
+| ray intersection    | 4096 rays against 65536 cells    | 45 ms |
+| sphere intersection | 4096 spheres against 65536 cells | 10 ms |
+| box intersection    | 4096 boxes against 65536 cells   | 9 ms  |
 
 Run benchmark:
 
-```
+```sh
 cargo bench --all-features
 ```
 
@@ -146,8 +147,41 @@ impl DummyCell {
 
 Run bevy visual example:
 
-```
+```sh
 cargo run --release --example bevy_tree --all-features
 ```
 
+## Check yourself list:
+
 Feature and pull requests are welcomed.
+
+- tests
+
+  ```sh
+  cargo test --all-targets --all-features --release
+  ```
+
+- clippy
+
+  ```sh
+  cargo clippy --all-targets --all-features
+  ```
+
+- examples
+
+  ```sh
+  cargo run --all-features --example simple
+  cargo run --all-features --example bevy_tree
+  ```
+
+- benchmark
+
+  ```sh
+  cargo bench --all-features
+  ```
+
+- docs
+
+  ```sh
+  cargo doc --no-deps --open --all-features
+  ```
