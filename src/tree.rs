@@ -364,6 +364,26 @@ where
         }
     }
 
+    /// Returns the element if element exists and not garbaged.
+    pub fn get(&self, point: TUVec3<U>) -> Option<&T> {
+        let element = self.find(point)?;
+        if self.elements.is_garbaged(element) {
+            None
+        } else {
+            Some(&self.elements[element])
+        }
+    }
+
+    /// Returns the element if element exists and not garbaged.
+    pub fn get_mut(&mut self, point: TUVec3<U>) -> Option<&mut T> {
+        let element = self.find(point)?;
+        if self.elements.is_garbaged(element) {
+            None
+        } else {
+            Some(&mut self.elements[element])
+        }
+    }
+
     /// Consumes a tree, converting it into a [`vector`](Vec).
     pub fn to_vec(self) -> Vec<T> {
         self.elements
