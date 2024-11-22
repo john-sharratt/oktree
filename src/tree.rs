@@ -15,7 +15,7 @@ use heapless::Vec as HVec;
 /// such as intersections, ray casting e.t.c
 /// All coordinates should be positive and integer ([`Unsigned`](num::Unsigned)),
 /// due to applied optimisations.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Octree<U, T>
 where
     U: Unsigned,
@@ -397,22 +397,6 @@ impl<U: Unsigned, T: Position<U = U>> std::iter::IntoIterator for Octree<U, T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.elements.into_iter()
-    }
-}
-
-impl<U, T> Clone for Octree<U, T>
-where
-    U: Unsigned,
-    T: Position<U = U> + Clone,
-{
-    fn clone(&self) -> Self {
-        Octree {
-            aabb: self.aabb,
-            elements: self.elements.clone(),
-            nodes: self.nodes.clone(),
-            map: self.map.clone(),
-            root: self.root,
-        }
     }
 }
 
