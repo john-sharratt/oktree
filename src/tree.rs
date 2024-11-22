@@ -355,6 +355,15 @@ where
         }
     }
 
+    /// Returns the element if element exists and not garbaged.
+    pub fn get_element_mut(&mut self, element: ElementId) -> Option<&mut T> {
+        if self.elements.is_garbaged(element) {
+            None
+        } else {
+            Some(&mut self.elements[element])
+        }
+    }
+
     /// Consumes a tree, converting it into a [`vector`](Vec).
     pub fn to_vec(self) -> Vec<T> {
         self.elements
