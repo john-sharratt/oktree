@@ -4,7 +4,7 @@
 
 use std::{
     fmt::{Debug, Display},
-    ops::{BitAnd, Shr},
+    ops::{Add, AddAssign, BitAnd, Shr, Sub, SubAssign},
 };
 
 use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
@@ -39,6 +39,46 @@ pub struct TUVec3<U: Unsigned> {
     pub x: U,
     pub y: U,
     pub z: U,
+}
+
+impl<U: Unsigned> Add for TUVec3<U> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        TUVec3 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
+    }
+}
+
+impl<U: Unsigned> Sub for TUVec3<U> {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        TUVec3 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
+    }
+}
+
+impl<U: Unsigned + AddAssign> AddAssign for TUVec3<U> {
+    fn add_assign(&mut self, other: Self) {
+        self.x += other.x;
+        self.y += other.y;
+        self.z += other.z;
+    }
+}
+
+impl<U: Unsigned + SubAssign> SubAssign for TUVec3<U> {
+    fn sub_assign(&mut self, other: Self) {
+        self.x -= other.x;
+        self.y -= other.y;
+        self.z -= other.z;
+    }
 }
 
 impl<U: Unsigned> Display for TUVec3<U> {
