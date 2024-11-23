@@ -43,14 +43,14 @@ Compensation for the inconvenience is perfomance.
 
 Octree dimensions: `4096x4096x4096`
 
-| Operation           | Quantity                         | Time  |
-| ------------------- | -------------------------------- | ----- |
-| insertion           | 65536 cells                      | 14 ms |
-| removing            | 65536 cells                      | 7 ms  |
-| find                | 65536 searches in 65536 cells    | 10 ms |
-| ray intersection    | 4096 rays against 65536 cells    | 45 ms |
-| sphere intersection | 4096 spheres against 65536 cells | 10 ms |
-| box intersection    | 4096 boxes against 65536 cells   | 9 ms  |
+| Operation           | Quantity                         | Time     |
+| ------------------- | -------------------------------- | -------- |
+| insertion           | 65536 cells                      | 15.4 ms  |
+| removing            | 65536 cells                      | 1.14 ms  |
+| find                | 65536 searches in 65536 cells    | 6.47 ms  |
+| ray intersection    | 4096 rays against 65536 cells    | 24.6 ms  |
+| sphere intersection | 4096 spheres against 65536 cells | 5.31 ms  |
+| box intersection    | 4096 boxes against 65536 cells   | 4.99 ms  |
 
 Run benchmark:
 

@@ -6,15 +6,16 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+use smallvec::SmallVec;
+
 use crate::{
     bounding::{Aabb, Unsigned},
     node::{Node, NodeType},
-    ElementId, NodeId, Position, TreeError,
+    ElementId, NodeId, TreeError, Volume,
 };
 
 /// [`PoolItem`] data structure that combines both the garbage flag
 /// and the actual item together for better cache locality.
-#[repr(align(8))]
 #[derive(Clone)]
 pub(crate) struct PoolItem<T> {
     pub(crate) item: T,
@@ -26,6 +27,15 @@ impl<T> From<T> for PoolItem<T> {
             item,
             garbage: false,
         }
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for PoolItem<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PoolItem")
+            .field("item", &self.item)
+            .field("garbage", &self.garbage)
+            .finish()
     }
 }
 
@@ -66,7 +76,7 @@ impl<U: Unsigned> Pool<Node<U>> {
     }
 }
 
-impl<T: Position> Default for Pool<T> {
+impl<T: Volume> Default for Pool<T> {
     fn default() -> Self {
         Pool {
             vec: Default::default(),
@@ -74,7 +84,7 @@ impl<T: Position> Default for Pool<T> {
         }
     }
 }
-impl<T: Position> Pool<T> {
+impl<T: Volume> Pool<T> {
     /// Clears all the items in the pool
     pub fn clear(&mut self) {
         self.vec.clear();
@@ -82,7 +92,16 @@ impl<T: Position> Pool<T> {
     }
 }
 
-impl Default for Pool<NodeId> {
+impl<T: std::fmt::Debug> std::fmt::Debug for Pool<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pool")
+            .field("vec", &self.vec)
+            .field("garbage", &self.garbage)
+            .finish()
+    }
+}
+
+impl Default for Pool<SmallVec<[NodeId; 1]>> {
     fn default() -> Self {
         Pool {
             vec: Default::default(),
@@ -90,7 +109,7 @@ impl Default for Pool<NodeId> {
         }
     }
 }
-impl Pool<NodeId> {
+impl Pool<SmallVec<[NodeId; 1]>> {
     /// Clears all the items in the pool
     pub fn clear(&mut self) {
         self.vec.clear();
@@ -135,7 +154,7 @@ impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
 /// let element = &tree.element[ElementId(42)];
 /// // let element = &tree.element[NodeId(42)]; // Error
 /// ```
-impl<T: Position> Index<ElementId> for Pool<T> {
+impl<T: Volume> Index<ElementId> for Pool<T> {
     type Output = T;
 
     fn index(&self, index: ElementId) -> &Self::Output {
@@ -153,7 +172,7 @@ impl<T: Position> Index<ElementId> for Pool<T> {
 /// let mut element = &mut tree.element[ElementId(42)];
 /// // let mut element = &mut tree.element[NodeId(42)]; // Error
 /// ```
-impl<T: Position> IndexMut<ElementId> for Pool<T> {
+impl<T: Volume> IndexMut<ElementId> for Pool<T> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
             !self.is_garbaged(index),
@@ -410,7 +429,7 @@ impl<U: Unsigned> Pool<Node<U>> {
     }
 }
 
-impl<T: Position> Pool<T> {
+impl<T: Volume> Pool<T> {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Pool {
             vec: Vec::with_capacity(capacity),
@@ -426,8 +445,10 @@ impl<T: Position> Pool<T> {
     #[inline(always)]
     pub(crate) fn remove(&mut self, element: ElementId) {
         let index: usize = element.into();
-        self.vec[index].garbage = true;
-        self.garbage.push(index);
+        if !self.vec[index].garbage {
+            self.vec[index].garbage = true;
+            self.garbage.push(index);
+        }
     }
 
     #[inline(always)]

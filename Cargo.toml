@@ -17,6 +17,7 @@ bevy = ["dep:bevy"]
 num = "0.4.3"
 bevy = { version = ">=0.9", optional = true }
 heapless = "0.8.0"
+smallvec = "1.11"
 
 [dev-dependencies]
 criterion = "0.5.1"

@@ -4,6 +4,7 @@ use core::fmt;
 
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
+    pool::Pool,
     ElementId, NodeId, TreeError,
 };
 
@@ -14,7 +15,7 @@ use crate::{
 /// - [`NodeType::Empty`]. Empty node.
 /// - [`NodeType::Leaf`]. Node, containig a single [`ElementId`].
 /// - [`NodeType::Branch`]. Node, containig a 8 child nodes.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Node<U: Unsigned> {
     pub aabb: Aabb<U>,
     pub ntype: NodeType,
@@ -104,6 +105,43 @@ impl Branch {
 
     pub(crate) fn decrement(&mut self) {
         self.filled -= 1;
+    }
+
+    pub fn x0_y0_z0(&self) -> NodeId {
+        self.children[0]
+    }
+
+    pub fn x1_y0_z0(&self) -> NodeId {
+        self.children[1]
+    }
+
+    pub fn x0_y1_z0(&self) -> NodeId {
+        self.children[2]
+    }
+
+    pub fn x1_y1_z0(&self) -> NodeId {
+        self.children[3]
+    }
+
+    pub fn x0_y0_z1(&self) -> NodeId {
+        self.children[4]
+    }
+
+    pub fn x1_y0_z1(&self) -> NodeId {
+        self.children[5]
+    }
+
+    pub fn x0_y1_z1(&self) -> NodeId {
+        self.children[6]
+    }
+
+    pub fn x1_y1_z1(&self) -> NodeId {
+        self.children[7]
+    }
+
+    pub fn center<U: Unsigned>(&self, nodes: &Pool<Node<U>>) -> TUVec3<U> {
+        let node = nodes[self.x0_y0_z0()];
+        node.aabb.max
     }
 
     /// Search which octant is suitable for the position.

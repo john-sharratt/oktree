@@ -4,10 +4,10 @@ use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},
     pool::{Pool, PoolElementIterator, PoolIntoIterator, PoolIterator},
-    ElementId, NodeId, Position, TreeError,
+    ElementId, NodeId, TreeError, Volume,
 };
 
-use heapless::Vec as HVec;
+use smallvec::SmallVec;
 
 /// Fast implementation of the octree data structure.
 ///
@@ -19,7 +19,7 @@ use heapless::Vec as HVec;
 pub struct Octree<U, T>
 where
     U: Unsigned,
-    T: Position<U = U>,
+    T: Volume<U = U>,
 {
     /// aabb used for clearing the octree
     aabb: Option<Aabb<U>>,
@@ -30,18 +30,13 @@ where
     /// [`Pool`] of tree [`Nodes`](crate::node::Node). Access it by [`NodeId`]
     pub(crate) nodes: Pool<Node<U>>,
 
-    /// Every element caches its' [`NodeId`].
-    /// Drastically speedup the elements removal.
-    /// Access it by [`ElementId`]
-    pub(crate) map: Pool<NodeId>,
-
     pub(crate) root: NodeId,
 }
 
 impl<U, T> Octree<U, T>
 where
     U: Unsigned,
-    T: Position<U = U>,
+    T: Volume<U = U>,
 {
     /// Construct a tree from [`Aabb`].
     ///
@@ -52,7 +47,6 @@ where
             aabb: Some(aabb),
             elements: Default::default(),
             nodes: Pool::from_aabb(aabb),
-            map: Default::default(),
             root: Default::default(),
         }
     }
@@ -65,7 +59,6 @@ where
             aabb: None,
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::with_capacity(capacity),
-            map: Pool::<NodeId>::with_capacity(capacity),
             root: Default::default(),
         }
     }
@@ -80,7 +73,6 @@ where
             aabb: Some(aabb),
             elements: Pool::<T>::with_capacity(capacity),
             nodes: Pool::<Node<U>>::from_aabb_with_capacity(aabb, capacity),
-            map: Pool::<NodeId>::with_capacity(capacity),
             root: Default::default(),
         }
     }
@@ -100,55 +92,60 @@ where
     /// assert_eq!(c1_id, ElementId(0))
     /// ```
     pub fn insert(&mut self, elem: T) -> Result<ElementId, TreeError> {
-        let position = elem.position();
-        if self.nodes[self.root].aabb.contains(position) {
+        let volume = elem.volume();
+        if self.nodes[self.root].aabb.overlaps(&volume) {
             let element = self.elements.insert(elem);
-            self.map.insert(0.into());
 
-            let mut insertions: HVec<Insertion<U>, 2> = HVec::new();
-            unsafe {
-                insertions.push_unchecked(Insertion {
-                    element,
-                    node: self.root,
-                    position,
-                });
-            }
+            let mut insertions: SmallVec<[Insertion<U>; 10]> = SmallVec::new();
+            insertions.push(Insertion {
+                element,
+                node: self.root,
+                volume,
+            });
 
+            let mut was_inserted = false;
             while let Some(insertion) = insertions.pop() {
                 match self._insert(insertion, &mut insertions) {
-                    Ok(()) => (),
+                    Ok(e) => was_inserted |= e == Some(element),
                     Err(err) => {
                         self.elements.remove(element);
-                        self.map.remove(element);
                         return Err(err);
                     }
                 }
             }
 
+            if !was_inserted {
+                self.elements.remove(element);
+                return Err(TreeError::AlreadyOccupied(format!(
+                    "Elements for volume: {} already exists",
+                    volume
+                )));
+            }
+
             Ok(element)
         } else {
             Err(TreeError::OutOfTreeBounds(format!(
-                "{position} is outside of aabb: min: {} max: {}",
+                "{volume} is outside of aabb: min: {} max: {}",
                 self.nodes[self.root].aabb.min, self.nodes[self.root].aabb.max,
             )))
         }
     }
 
-    fn _insert(
+    #[inline]
+    fn _insert<const C: usize>(
         &mut self,
         insertion: Insertion<U>,
-        insertions: &mut HVec<Insertion<U>, 2>,
-    ) -> Result<(), TreeError> {
+        insertions: &mut SmallVec<[Insertion<U>; C]>,
+    ) -> Result<Option<ElementId>, TreeError> {
         let Insertion {
             element,
             node,
-            position,
+            volume,
         } = insertion;
 
-        let ntype = self.nodes[node].ntype;
-        match ntype {
+        let n = &mut self.nodes[node];
+        match n.ntype {
             NodeType::Empty => {
-                let n = &mut self.nodes[node];
                 n.ntype = NodeType::Leaf(element);
                 if let Some(parent) = n.parent {
                     match self.nodes[parent].ntype {
@@ -163,70 +160,102 @@ where
                         }
                     }
                 }
-                self.map[element] = node;
+                Ok(Some(element))
             }
 
             NodeType::Leaf(e) => {
-                if self.nodes[node].aabb.unit() {
-                    return Err(TreeError::SplitUnit(
-                        "Attempt to insert element into a leaf with size 1".into(),
-                    ));
+                if n.aabb.unit() {
+                    return Ok(None); // ignore
                 }
                 let children = self.nodes.branch(node);
-
                 let n = &mut self.nodes[node];
+
                 n.ntype = NodeType::Branch(Branch::new(children));
-                unsafe {
-                    insertions.push_unchecked(insertion);
-                    insertions.push_unchecked(Insertion {
-                        element: e,
-                        node,
-                        position: self.elements[e].position(),
-                    })
-                }
+                insertions.push(insertion);
+                insertions.push(Insertion {
+                    element: e,
+                    node,
+                    volume: self.elements[e].volume(),
+                });
+                Ok(None)
             }
 
             NodeType::Branch(branch) => {
-                let center = self.nodes[node].aabb.center();
-                let child: NodeId = branch.find_child(position, center);
-                unsafe {
-                    insertions.push_unchecked(Insertion {
-                        element,
-                        node: child,
-                        position,
-                    })
+                let branch_center = branch.center(&self.nodes);
+                if volume.min.x < branch_center.x {
+                    if volume.min.y < branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x0_y0_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x0_y0_z1(),
+                                volume,
+                            });
+                        }
+                    }
+                    if volume.max.y > branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x0_y1_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x0_y1_z1(),
+                                volume,
+                            });
+                        }
+                    }
                 }
+                if volume.max.x > branch_center.x {
+                    if volume.min.y < branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x1_y0_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x1_y0_z1(),
+                                volume,
+                            });
+                        }
+                    }
+                    if volume.max.y > branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x1_y1_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            insertions.push(Insertion {
+                                element,
+                                node: branch.x1_y1_z1(),
+                                volume,
+                            });
+                        }
+                    }
+                }
+                Ok(None)
             }
         }
-
-        Ok(())
     }
 
-    /// Upserts an element into a tree.
-    ///
-    /// Recursively subdivide the space, creating new [`nodes`](crate::node::Node)
-    /// Returns inserted element's [`id`](ElementId)
-    ///
-    /// ```rust
-    /// use oktree::prelude::*;
-    ///
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
-    /// let c1 = TUVec3u8::new(1u8, 1, 1);
-    ///
-    /// let c1_id = tree.upsert(c1).unwrap();
-    /// assert_eq!(c1_id, ElementId(0));
-    ///
-    /// let c1_id = tree.upsert(c1).unwrap();
-    /// assert_eq!(c1_id, ElementId(0));
-    /// ```
-    pub fn upsert(&mut self, elem: T) -> Result<ElementId, TreeError> {
-        if let Some(existing) = self.find(elem.position()) {
-            self.remove(existing)?;
-        }
-        self.insert(elem)
-    }
-
-    /// Remove an element from the tree.
+    /// Remove an element(s) from the tree
     ///
     /// Recursively collapse an empty [`nodes`](crate::node::Node).
     /// No memory deallocaton happening.
@@ -241,24 +270,149 @@ where
     ///
     /// assert!(tree.remove(c1_id).is_ok());
     /// ```
-    pub fn remove(&mut self, element: ElementId) -> Result<(), TreeError> {
-        let node = self.map[element];
-        let n = &mut self.nodes[node];
-        let parent = n.parent;
-        match n.ntype {
-            NodeType::Leaf(_) => {
-                self.elements.remove(element);
-                self.map.remove(element);
-                n.ntype = NodeType::Empty;
-                if let Some((element, node)) = self.nodes.collapse(parent)? {
-                    self.map[element] = node;
+    pub fn remove(&mut self, elem: ElementId) -> Result<(), TreeError> {
+        if let Some(elem) = self.get_element(elem) {
+            let volume = elem.volume();
+            self.remove_by_volume(volume)
+        } else {
+            Err(TreeError::ElementNotFound(format!(
+                "Element with id: {} not found",
+                elem.0
+            )))
+        }
+    }
+
+    /// Remove an element(s) from the tree by volume.
+    ///
+    /// Recursively collapse an empty [`nodes`](crate::node::Node).
+    /// No memory deallocaton happening.
+    /// Element is only marked as removed and could be reused.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// assert!(tree.remove(c1_id).is_ok());
+    /// ```
+    pub fn remove_by_volume(&mut self, volume: Aabb<U>) -> Result<(), TreeError> {
+        if self.nodes[self.root].aabb.overlaps(&volume) {
+            let mut removals: SmallVec<[Removal<U>; 16]> = SmallVec::new();
+            removals.push(Removal {
+                parent: None,
+                node: self.root,
+                volume,
+            });
+
+            while let Some(removal) = removals.pop() {
+                self._remove(removal, &mut removals)?;
+            }
+            Ok(())
+        } else {
+            return Err(TreeError::OutOfTreeBounds(format!(
+                "{volume} is outside of aabb: min: {} max: {}",
+                self.nodes[self.root].aabb.min, self.nodes[self.root].aabb.max,
+            )));
+        }
+    }
+
+    #[inline]
+    fn _remove(
+        &mut self,
+        removal: Removal<U>,
+        removals: &mut SmallVec<[Removal<U>; 16]>,
+    ) -> Result<(), TreeError> {
+        let Removal {
+            parent,
+            node,
+            volume,
+        } = removal;
+
+        let ntype = self.nodes[node].ntype;
+        match ntype {
+            NodeType::Empty => Ok(()),
+
+            NodeType::Leaf(e) => {
+                self.elements.remove(e);
+                self.nodes[node].ntype = NodeType::Empty;
+                self.nodes.collapse(parent)?;
+                Ok(())
+            }
+
+            NodeType::Branch(branch) => {
+                let branch_center = branch.center(&self.nodes);
+                if volume.min.x < branch_center.x {
+                    if volume.min.y < branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x0_y0_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x0_y0_z1(),
+                                volume,
+                            });
+                        }
+                    }
+                    if volume.max.y > branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x0_y1_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x0_y1_z1(),
+                                volume,
+                            });
+                        }
+                    }
+                }
+                if volume.max.x > branch_center.x {
+                    if volume.min.y < branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x1_y0_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x1_y0_z1(),
+                                volume,
+                            });
+                        }
+                    }
+                    if volume.max.y > branch_center.y {
+                        if volume.min.z < branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x1_y1_z0(),
+                                volume,
+                            });
+                        }
+                        if volume.max.z > branch_center.z {
+                            removals.push(Removal {
+                                parent: Some(node),
+                                node: branch.x1_y1_z1(),
+                                volume,
+                            });
+                        }
+                    }
                 }
                 Ok(())
             }
-            _ => Err(TreeError::NotLeaf(format!(
-                "Attemt to remove element from {}",
-                n.ntype
-            ))),
         }
     }
 
@@ -268,7 +422,6 @@ where
     /// reused for new elements without causing any memory reallocations.
     pub fn clear(&mut self) {
         self.elements.clear();
-        self.map.clear();
         if let Some(aabb) = self.aabb {
             self.nodes.clear_with_aabb(aabb);
         } else {
@@ -282,7 +435,6 @@ where
     pub fn restore_garbage(&mut self) {
         self.elements.restore_garbage();
         self.nodes.restore_garbage();
-        self.map.restore_garbage();
     }
 
     /// Search for the element at the [`point`](TUVec3)
@@ -313,7 +465,7 @@ where
                 NodeType::Empty => None,
 
                 NodeType::Leaf(e) => {
-                    if self.elements[e].position() == point {
+                    if self.elements[e].volume().contains(point) {
                         Some(e)
                     } else {
                         None
@@ -325,24 +477,6 @@ where
                     continue;
                 }
             };
-        }
-    }
-
-    /// Returns the node's [`id`](NodeId) containing the element if element exists and not garbaged.
-    pub fn get_node_id(&self, element: ElementId) -> Option<NodeId> {
-        if self.map.is_garbaged(element) {
-            None
-        } else {
-            Some(self.map[element])
-        }
-    }
-
-    /// Returns the node's [`id`](NodeId) containing the element if element exists and not garbaged.
-    pub fn get_node(&self, element: ElementId) -> Option<Node<U>> {
-        if self.map.is_garbaged(element) {
-            None
-        } else {
-            Some(self.nodes[self.map[element]])
         }
     }
 
@@ -422,7 +556,7 @@ where
     }
 }
 
-impl<U: Unsigned, T: Position<U = U>> std::iter::IntoIterator for Octree<U, T> {
+impl<U: Unsigned, T: Volume<U = U>> std::iter::IntoIterator for Octree<U, T> {
     type Item = T;
     type IntoIter = PoolIntoIterator<T>;
 
@@ -431,9 +565,29 @@ impl<U: Unsigned, T: Position<U = U>> std::iter::IntoIterator for Octree<U, T> {
     }
 }
 
+impl<U: Unsigned, T: Volume<U = U>> std::fmt::Debug for Octree<U, T>
+where
+    T: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Octree")
+            .field("elements", &self.elements)
+            .field("nodes", &self.nodes)
+            .field("root", &self.root)
+            .finish()
+    }
+}
+
 #[derive(Debug)]
 struct Insertion<U: Unsigned> {
     element: ElementId,
     node: NodeId,
-    position: TUVec3<U>,
+    volume: Aabb<U>,
+}
+
+#[derive(Debug)]
+struct Removal<U: Unsigned> {
+    parent: Option<NodeId>,
+    node: NodeId,
+    volume: Aabb<U>,
 }
