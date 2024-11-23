@@ -4,7 +4,7 @@
 
 use std::{
     fmt::{Debug, Display},
-    ops::{Add, AddAssign, BitAnd, Shr, Sub, SubAssign},
+    ops::{Add, AddAssign, BitAnd, Div, DivAssign, MulAssign, Shr, Sub, SubAssign},
 };
 
 use num::{cast, Integer, NumCast, Saturating, Unsigned as NumUnsigned};
@@ -20,6 +20,10 @@ pub trait Unsigned:
     + AddAssign
     + Sub
     + SubAssign
+    + Div
+    + DivAssign
+    + Mul
+    + MulAssign
     + Shr<Self, Output = Self>
     + BitAnd<Self, Output = Self>
     + Copy
@@ -83,6 +87,46 @@ impl<U: Unsigned> SubAssign for TUVec3<U> {
         self.x = self.x.saturating_sub(other.x);
         self.y = self.y.saturating_sub(other.y);
         self.z = self.z.saturating_sub(other.z);
+    }
+}
+
+impl<U: Unsigned> Mul<U> for TUVec3<U> {
+    type Output = Self;
+
+    fn mul(self, other: U) -> Self {
+        TUVec3 {
+            x: self.x * other,
+            y: self.y * other,
+            z: self.z * other,
+        }
+    }
+}
+
+impl<U: Unsigned> MulAssign<U> for TUVec3<U> {
+    fn mul_assign(&mut self, other: U) {
+        self.x *= other;
+        self.y *= other;
+        self.z *= other;
+    }
+}
+
+impl<U: Unsigned> Div<U> for TUVec3<U> {
+    type Output = Self;
+
+    fn div(self, other: U) -> Self {
+        TUVec3 {
+            x: self.x / other,
+            y: self.y / other,
+            z: self.z / other,
+        }
+    }
+}
+
+impl<U: Unsigned> DivAssign<U> for TUVec3<U> {
+    fn div_assign(&mut self, other: U) {
+        self.x /= other;
+        self.y /= other;
+        self.z /= other;
     }
 }
 
