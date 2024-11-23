@@ -4,7 +4,7 @@
 
 use std::{
     fmt::{Debug, Display},
-    ops::{Add, AddAssign, BitAnd, Div, DivAssign, MulAssign, Shr, Sub, SubAssign},
+    ops::{Add, AddAssign, BitAnd, Div, DivAssign, Mul, MulAssign, Shr, Sub, SubAssign},
 };
 
 use num::{cast, Integer, NumCast, Saturating, Unsigned as NumUnsigned};
