@@ -5,7 +5,7 @@ use core::fmt;
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     pool::Pool,
-    ElementId, NodeId, TreeError,
+    ElementId, NodeId,
 };
 
 /// [`Octree's`](crate::tree::Octree) node.
@@ -40,19 +40,6 @@ impl<U: Unsigned> Node<U> {
             ..Default::default()
         }
     }
-
-    /// How many non-empty child nodes contained by this
-    ///
-    /// [`branch`](NodeType::Branch) node.
-    pub fn fullness(&self) -> Result<u8, TreeError> {
-        match self.ntype {
-            NodeType::Branch(Branch { filled, .. }) => Ok(filled),
-            _ => Err(TreeError::NotBranch(format!(
-                "Attemt to get child count for {} node",
-                self.ntype
-            ))),
-        }
-    }
 }
 
 /// [`Node`] types.
@@ -83,7 +70,6 @@ impl fmt::Display for NodeType {
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct Branch {
     pub children: [NodeId; 8],
-    pub filled: u8,
 }
 
 impl Branch {
@@ -92,19 +78,6 @@ impl Branch {
             children,
             ..Default::default()
         }
-    }
-
-    pub(crate) fn from_filled(children: [NodeId; 8], filled: u8) -> Self {
-        Branch { children, filled }
-    }
-
-    pub(crate) fn increment(&mut self) {
-        self.filled += 1;
-        debug_assert!(self.filled <= 8);
-    }
-
-    pub(crate) fn decrement(&mut self) {
-        self.filled -= 1;
     }
 
     pub fn x0_y0_z0(&self) -> NodeId {

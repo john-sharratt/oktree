@@ -147,19 +147,6 @@ where
         match n.ntype {
             NodeType::Empty => {
                 n.ntype = NodeType::Leaf(element);
-                if let Some(parent) = n.parent {
-                    match self.nodes[parent].ntype {
-                        NodeType::Branch(ref mut branch) => {
-                            branch.increment();
-                        }
-                        _ => {
-                            return Err(TreeError::NotBranch(format!(
-                                "Attempt to increment a node with type {}",
-                                self.nodes[parent].ntype
-                            )))
-                        }
-                    }
-                }
                 Ok(Some(element))
             }
 
@@ -167,6 +154,13 @@ where
                 if n.aabb.unit() {
                     return Ok(None); // ignore
                 }
+
+                let e1 = self.elements[e].volume();
+                let e2 = self.elements[element].volume();
+                if e1.overlaps(&e2) {
+                    return Ok(None);
+                }
+
                 let children = self.nodes.branch(node);
                 let n = &mut self.nodes[node];
 
@@ -175,7 +169,7 @@ where
                 insertions.push(Insertion {
                     element: e,
                     node,
-                    volume: self.elements[e].volume(),
+                    volume: e1,
                 });
                 Ok(None)
             }
@@ -271,9 +265,25 @@ where
     /// assert!(tree.remove(c1_id).is_ok());
     /// ```
     pub fn remove(&mut self, elem: ElementId) -> Result<(), TreeError> {
-        if let Some(elem) = self.get_element(elem) {
-            let volume = elem.volume();
-            self.remove_by_volume(volume)
+        if let Some(element) = self.get_element(elem) {
+            let volume = element.volume();
+            if self.nodes[self.root].aabb.overlaps(&volume) {
+                let mut removals: SmallVec<[Removal; 16]> = SmallVec::new();
+                removals.push(Removal {
+                    parent: None,
+                    node: self.root,
+                });
+                while let Some(removal) = removals.pop() {
+                    self._remove(elem, volume, removal, &mut removals)?;
+                }
+                self.elements.remove(elem);
+                Ok(())
+            } else {
+                return Err(TreeError::OutOfTreeBounds(format!(
+                    "{volume} is outside of aabb: min: {} max: {}",
+                    self.nodes[self.root].aabb.min, self.nodes[self.root].aabb.max,
+                )));
+            }
         } else {
             Err(TreeError::ElementNotFound(format!(
                 "Element with id: {} not found",
@@ -282,131 +292,92 @@ where
         }
     }
 
-    /// Remove an element(s) from the tree by volume.
-    ///
-    /// Recursively collapse an empty [`nodes`](crate::node::Node).
-    /// No memory deallocaton happening.
-    /// Element is only marked as removed and could be reused.
-    ///
-    /// ```rust
-    /// use oktree::prelude::*;
-    ///
-    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
-    /// let c1 = TUVec3u8::new(1u8, 1, 1);
-    /// let c1_id = tree.insert(c1).unwrap();
-    ///
-    /// assert!(tree.remove(c1_id).is_ok());
-    /// ```
-    pub fn remove_by_volume(&mut self, volume: Aabb<U>) -> Result<(), TreeError> {
-        if self.nodes[self.root].aabb.overlaps(&volume) {
-            let mut removals: SmallVec<[Removal<U>; 16]> = SmallVec::new();
-            removals.push(Removal {
-                parent: None,
-                node: self.root,
-                volume,
-            });
-
-            while let Some(removal) = removals.pop() {
-                self._remove(removal, &mut removals)?;
-            }
-            Ok(())
-        } else {
-            return Err(TreeError::OutOfTreeBounds(format!(
-                "{volume} is outside of aabb: min: {} max: {}",
-                self.nodes[self.root].aabb.min, self.nodes[self.root].aabb.max,
-            )));
-        }
-    }
-
     #[inline]
     fn _remove(
         &mut self,
-        removal: Removal<U>,
-        removals: &mut SmallVec<[Removal<U>; 16]>,
+        element: ElementId,
+        volume: Aabb<U>,
+        removal: Removal,
+        removals: &mut SmallVec<[Removal; 16]>,
     ) -> Result<(), TreeError> {
-        let Removal {
-            parent,
-            node,
-            volume,
-        } = removal;
+        let Removal { parent, node } = removal;
+
+        if self.nodes.is_garbaged(node) {
+            return Ok(());
+        }
 
         let ntype = self.nodes[node].ntype;
         match ntype {
             NodeType::Empty => Ok(()),
 
-            NodeType::Leaf(e) => {
-                self.elements.remove(e);
+            NodeType::Leaf(e) if e == element => {
                 self.nodes[node].ntype = NodeType::Empty;
-                self.nodes.collapse(parent)?;
+                if let Some(parent) = parent {
+                    self.nodes.maybe_collapse(parent);
+                }
                 Ok(())
             }
 
+            NodeType::Leaf(_) => Ok(()),
+
             NodeType::Branch(branch) => {
                 let branch_center = branch.center(&self.nodes);
-                if volume.min.x < branch_center.x {
-                    if volume.min.y < branch_center.y {
-                        if volume.min.z < branch_center.z {
+                if volume.min.x <= branch_center.x {
+                    if volume.min.y <= branch_center.y {
+                        if volume.min.z <= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x0_y0_z0(),
-                                volume,
                             });
                         }
-                        if volume.max.z > branch_center.z {
+                        if volume.max.z >= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x0_y0_z1(),
-                                volume,
                             });
                         }
                     }
-                    if volume.max.y > branch_center.y {
-                        if volume.min.z < branch_center.z {
+                    if volume.max.y >= branch_center.y {
+                        if volume.min.z <= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x0_y1_z0(),
-                                volume,
                             });
                         }
-                        if volume.max.z > branch_center.z {
+                        if volume.max.z >= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x0_y1_z1(),
-                                volume,
                             });
                         }
                     }
                 }
-                if volume.max.x > branch_center.x {
-                    if volume.min.y < branch_center.y {
-                        if volume.min.z < branch_center.z {
+                if volume.max.x >= branch_center.x {
+                    if volume.min.y <= branch_center.y {
+                        if volume.min.z <= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x1_y0_z0(),
-                                volume,
                             });
                         }
-                        if volume.max.z > branch_center.z {
+                        if volume.max.z >= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x1_y0_z1(),
-                                volume,
                             });
                         }
                     }
-                    if volume.max.y > branch_center.y {
-                        if volume.min.z < branch_center.z {
+                    if volume.max.y >= branch_center.y {
+                        if volume.min.z <= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x1_y1_z0(),
-                                volume,
                             });
                         }
-                        if volume.max.z > branch_center.z {
+                        if volume.max.z >= branch_center.z {
                             removals.push(Removal {
                                 parent: Some(node),
                                 node: branch.x1_y1_z1(),
-                                volume,
                             });
                         }
                     }
@@ -586,8 +557,7 @@ struct Insertion<U: Unsigned> {
 }
 
 #[derive(Debug)]
-struct Removal<U: Unsigned> {
+struct Removal {
     parent: Option<NodeId>,
     node: NodeId,
-    volume: Aabb<U>,
 }

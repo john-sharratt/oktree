@@ -7,7 +7,7 @@ use std::{
     ops::{Add, AddAssign, BitAnd, Shr, Sub, SubAssign},
 };
 
-use num::{cast, Integer, NumCast, Unsigned as NumUnsigned};
+use num::{cast, Integer, NumCast, Saturating, Unsigned as NumUnsigned};
 
 use crate::{Position, TreeError};
 
@@ -15,6 +15,11 @@ pub trait Unsigned:
     Integer
     + NumUnsigned
     + NumCast
+    + Saturating
+    + Add
+    + AddAssign
+    + Sub
+    + SubAssign
     + Shr<Self, Output = Self>
     + BitAnd<Self, Output = Self>
     + Copy
@@ -58,14 +63,14 @@ impl<U: Unsigned> Sub for TUVec3<U> {
 
     fn sub(self, other: Self) -> Self {
         TUVec3 {
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
+            x: self.x.saturating_sub(other.x),
+            y: self.y.saturating_sub(other.y),
+            z: self.z.saturating_sub(other.z),
         }
     }
 }
 
-impl<U: Unsigned + AddAssign> AddAssign for TUVec3<U> {
+impl<U: Unsigned> AddAssign for TUVec3<U> {
     fn add_assign(&mut self, other: Self) {
         self.x += other.x;
         self.y += other.y;
@@ -73,11 +78,11 @@ impl<U: Unsigned + AddAssign> AddAssign for TUVec3<U> {
     }
 }
 
-impl<U: Unsigned + SubAssign> SubAssign for TUVec3<U> {
+impl<U: Unsigned> SubAssign for TUVec3<U> {
     fn sub_assign(&mut self, other: Self) {
-        self.x -= other.x;
-        self.y -= other.y;
-        self.z -= other.z;
+        self.x = self.x.saturating_sub(other.x);
+        self.y = self.y.saturating_sub(other.y);
+        self.z = self.z.saturating_sub(other.z);
     }
 }
 
@@ -198,9 +203,9 @@ impl<U: Unsigned> Aabb<U> {
     pub fn new_unchecked(center: TUVec3<U>, half_size: U) -> Self {
         Aabb {
             min: TUVec3::new(
-                center.x - half_size,
-                center.y - half_size,
-                center.z - half_size,
+                center.x.saturating_sub(half_size),
+                center.y.saturating_sub(half_size),
+                center.z.saturating_sub(half_size),
             ),
             max: TUVec3::new(
                 center.x + half_size,

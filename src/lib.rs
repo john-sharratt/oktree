@@ -396,9 +396,9 @@ mod tests {
 
     use super::*;
     use bounding::Aabb;
-    use node::{Branch, NodeType};
+    use node::NodeType;
     use rand::Rng;
-    use std::{array::from_fn, collections::HashSet};
+    use std::collections::HashSet;
     use tree::Octree;
 
     const RANGE: usize = 65536;
@@ -469,7 +469,7 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
-        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.into()));
+        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.clone().into()));
         assert_eq!(tree.nodes[0.into()].parent, None);
 
         let c2 = DummyCell::new(TUVec3::new(7, 7, 7));
@@ -482,12 +482,6 @@ mod tests {
         assert_eq!(tree.nodes.garbage_len(), 0);
 
         assert_eq!(tree.nodes[0.into()].parent, None);
-
-        let children = from_fn(|i| NodeId(i as u32 + 1));
-        assert_eq!(
-            tree.nodes[0.into()].ntype,
-            NodeType::Branch(Branch::from_filled(children, 2))
-        );
 
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(0.into()));
         assert_eq!(tree.nodes[1.into()].parent, Some(0.into()));
@@ -514,13 +508,13 @@ mod tests {
         assert_eq!(tree.insert(c2r).is_err(), true);
         assert_eq!(tree.find(TUVec3::new(1, 1, 1)), Some(ElementId(0)));
 
-        assert_eq!(tree.nodes.len(), 33);
+        assert_eq!(tree.nodes.len(), 25);
         assert_eq!(tree.elements.len(), 2);
 
         tree.remove(0.into()).unwrap();
 
         assert_eq!(tree.elements.len(), 1);
-        assert_eq!(tree.nodes.len(), 17);
+        assert_eq!(tree.nodes.len(), 25);
 
         tree.remove(1.into()).unwrap();
 
@@ -549,28 +543,16 @@ mod tests {
         let c5 = DummyCell::new(TUVec3::new(6, 7, 1));
         assert_eq!(tree.insert(c5), Ok(ElementId(4)));
 
-        assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
-        assert_eq!(tree.nodes[1.into()].fullness(), Ok(2));
-        assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
-
         assert_eq!(tree.remove(0.into()), Ok(()));
-
-        assert_eq!(tree.nodes[0.into()].fullness(), Ok(2));
-        assert_eq!(tree.nodes[1.into()].ntype, NodeType::Leaf(1.into()));
-        assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
 
         assert_eq!(tree.remove(1.into()), Ok(()));
 
-        assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);
-        assert_eq!(tree.nodes[20.into()].fullness(), Ok(3));
 
         assert_eq!(tree.remove(2.into()), Ok(()));
         assert_eq!(tree.remove(3.into()), Ok(()));
 
-        assert_eq!(tree.nodes[0.into()].fullness(), Ok(1));
         assert_eq!(tree.nodes[1.into()].ntype, NodeType::Empty);
-        assert_eq!(tree.nodes[20.into()].ntype, NodeType::Leaf(4.into()));
 
         assert_eq!(tree.remove(4.into()), Ok(()));
 
@@ -641,16 +623,18 @@ mod tests {
 
         assert_eq!(tree.find(TUVec3::new(13, 9, 13)), None);
 
-        tree.insert(DummyVolume::new(Aabb::new_unchecked(
-            TUVec3::new(20, 13, 13),
-            3,
-        )))
-        .unwrap();
+        assert_eq!(
+            tree.insert(DummyVolume::new(Aabb::new_unchecked(
+                TUVec3::new(20, 13, 13),
+                3,
+            )))
+            .is_err(),
+            true
+        );
 
         assert_eq!(tree.find(TUVec3::new(19, 13, 13)), Some(ElementId(1)));
         assert_eq!(tree.find(TUVec3::new(21, 13, 13)), Some(ElementId(1)));
-        assert_eq!(tree.find(TUVec3::new(22, 13, 13)), Some(ElementId(2)));
-        assert_eq!(tree.find(TUVec3::new(23, 13, 13)), None);
+        assert_eq!(tree.find(TUVec3::new(22, 13, 13)), None);
 
         let mut hits = HashSet::new();
         tree.intersect_with_for_each(
@@ -661,7 +645,7 @@ mod tests {
                 hits.insert(e.clone());
             },
         );
-        assert_eq!(hits.len(), 3);
+        assert_eq!(hits.len(), 2);
 
         let mut hits = HashSet::new();
         tree.intersect_with_for_each(

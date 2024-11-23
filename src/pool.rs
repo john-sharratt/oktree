@@ -11,7 +11,7 @@ use smallvec::SmallVec;
 use crate::{
     bounding::{Aabb, Unsigned},
     node::{Node, NodeType},
-    ElementId, NodeId, TreeError, Volume,
+    ElementId, NodeId, Volume,
 };
 
 /// [`PoolItem`] data structure that combines both the garbage flag
@@ -343,56 +343,23 @@ impl<U: Unsigned> Pool<Node<U>> {
         from_fn(|i| self.insert(Node::from_aabb(aabbs[i], Some(parent))))
     }
 
-    pub(crate) fn collapse(
-        &mut self,
-        parent: Option<NodeId>,
-    ) -> Result<Option<(ElementId, NodeId)>, TreeError> {
-        if let Some(parent) = parent {
-            let mut p = self[parent];
-
-            match p.ntype {
-                NodeType::Branch(ref mut branch) => {
-                    branch.decrement();
-                    match branch.filled {
-                        0 => {
-                            let children = branch.children;
-                            p.ntype = NodeType::Empty;
-                            self[parent] = p;
-                            children.map(|child| self.remove(child));
-                            return self.collapse(p.parent);
-                        }
-
-                        1 => {
-                            for child in branch.children {
-                                let c = self[child];
-                                match c.ntype {
-                                    NodeType::Leaf(element) => {
-                                        let children = branch.children;
-                                        p.ntype = NodeType::Leaf(element);
-                                        self[parent] = p;
-                                        children.map(|child| self.remove(child));
-                                        return Ok(Some((element, parent)));
-                                    }
-                                    NodeType::Branch(_) => break,
-                                    NodeType::Empty => (),
-                                }
-                            }
-                        }
-
-                        _ => (),
+    pub(crate) fn maybe_collapse(&mut self, parent: NodeId) {
+        let mut current = Some(parent);
+        while let Some(parent) = current.take() {
+            if let NodeType::Branch(ref branch) = self[parent].ntype {
+                if branch
+                    .children
+                    .iter()
+                    .all(|&child| self[child].ntype == NodeType::Empty)
+                {
+                    for child in branch.children {
+                        self.remove(child);
                     }
-                }
-                _ => {
-                    return Err(TreeError::NotBranch(format!(
-                        "Attempt to collapse a node of type {}",
-                        p.ntype
-                    )))
+                    self[parent].ntype = NodeType::Empty;
+                    current = self[parent].parent;
                 }
             }
-
-            self[parent] = p;
         }
-        Ok(None)
     }
 
     #[inline(always)]
