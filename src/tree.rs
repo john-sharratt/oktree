@@ -175,75 +175,13 @@ where
             }
 
             NodeType::Branch(branch) => {
-                let branch_center = branch.center(&self.nodes);
-                if volume.min.x < branch_center.x {
-                    if volume.min.y < branch_center.y {
-                        if volume.min.z < branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x0_y0_z0(),
-                                volume,
-                            });
-                        }
-                        if volume.max.z > branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x0_y0_z1(),
-                                volume,
-                            });
-                        }
-                    }
-                    if volume.max.y > branch_center.y {
-                        if volume.min.z < branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x0_y1_z0(),
-                                volume,
-                            });
-                        }
-                        if volume.max.z > branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x0_y1_z1(),
-                                volume,
-                            });
-                        }
-                    }
-                }
-                if volume.max.x > branch_center.x {
-                    if volume.min.y < branch_center.y {
-                        if volume.min.z < branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x1_y0_z0(),
-                                volume,
-                            });
-                        }
-                        if volume.max.z > branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x1_y0_z1(),
-                                volume,
-                            });
-                        }
-                    }
-                    if volume.max.y > branch_center.y {
-                        if volume.min.z < branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x1_y1_z0(),
-                                volume,
-                            });
-                        }
-                        if volume.max.z > branch_center.z {
-                            insertions.push(Insertion {
-                                element,
-                                node: branch.x1_y1_z1(),
-                                volume,
-                            });
-                        }
-                    }
-                }
+                branch.walk_children_exclusive(&self.nodes, &volume, |child| {
+                    insertions.push(Insertion {
+                        element,
+                        node: child,
+                        volume,
+                    });
+                });
                 Ok(None)
             }
         }
@@ -321,67 +259,12 @@ where
             NodeType::Leaf(_) => Ok(()),
 
             NodeType::Branch(branch) => {
-                let branch_center = branch.center(&self.nodes);
-                if volume.min.x <= branch_center.x {
-                    if volume.min.y <= branch_center.y {
-                        if volume.min.z <= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x0_y0_z0(),
-                            });
-                        }
-                        if volume.max.z >= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x0_y0_z1(),
-                            });
-                        }
-                    }
-                    if volume.max.y >= branch_center.y {
-                        if volume.min.z <= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x0_y1_z0(),
-                            });
-                        }
-                        if volume.max.z >= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x0_y1_z1(),
-                            });
-                        }
-                    }
-                }
-                if volume.max.x >= branch_center.x {
-                    if volume.min.y <= branch_center.y {
-                        if volume.min.z <= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x1_y0_z0(),
-                            });
-                        }
-                        if volume.max.z >= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x1_y0_z1(),
-                            });
-                        }
-                    }
-                    if volume.max.y >= branch_center.y {
-                        if volume.min.z <= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x1_y1_z0(),
-                            });
-                        }
-                        if volume.max.z >= branch_center.z {
-                            removals.push(Removal {
-                                parent: Some(node),
-                                node: branch.x1_y1_z1(),
-                            });
-                        }
-                    }
-                }
+                branch.walk_children_inclusive(&self.nodes, &volume, |child| {
+                    removals.push(Removal {
+                        parent: Some(node),
+                        node: child,
+                    });
+                });
                 Ok(())
             }
         }

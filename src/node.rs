@@ -77,41 +77,142 @@ impl Branch {
         Branch { children }
     }
 
+    #[inline(always)]
     pub fn x0_y0_z0(&self) -> NodeId {
         self.children[0]
     }
 
+    #[inline(always)]
     pub fn x1_y0_z0(&self) -> NodeId {
         self.children[1]
     }
 
+    #[inline(always)]
     pub fn x0_y1_z0(&self) -> NodeId {
         self.children[2]
     }
 
+    #[inline(always)]
     pub fn x1_y1_z0(&self) -> NodeId {
         self.children[3]
     }
 
+    #[inline(always)]
     pub fn x0_y0_z1(&self) -> NodeId {
         self.children[4]
     }
 
+    #[inline(always)]
     pub fn x1_y0_z1(&self) -> NodeId {
         self.children[5]
     }
 
+    #[inline(always)]
     pub fn x0_y1_z1(&self) -> NodeId {
         self.children[6]
     }
 
+    #[inline(always)]
     pub fn x1_y1_z1(&self) -> NodeId {
         self.children[7]
     }
 
+    #[inline]
     pub fn center<U: Unsigned>(&self, nodes: &Pool<Node<U>>) -> TUVec3<U> {
         let node = nodes[self.x0_y0_z0()];
         node.aabb.max
+    }
+
+    #[inline]
+    pub(crate) fn walk_children_inclusive<U: Unsigned>(
+        &self,
+        nodes: &Pool<Node<U>>,
+        aabb: &Aabb<U>,
+        mut f: impl FnMut(NodeId),
+    ) {
+        let branch_center = self.center(nodes);
+        if aabb.min.x <= branch_center.x {
+            if aabb.min.y <= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x0_y0_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x0_y0_z1());
+                }
+            }
+            if aabb.max.y >= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x0_y1_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x0_y1_z1());
+                }
+            }
+        }
+        if aabb.max.x >= branch_center.x {
+            if aabb.min.y <= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x1_y0_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x1_y0_z1());
+                }
+            }
+            if aabb.max.y >= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x1_y1_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x1_y1_z1());
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn walk_children_exclusive<U: Unsigned>(
+        &self,
+        nodes: &Pool<Node<U>>,
+        aabb: &Aabb<U>,
+        mut f: impl FnMut(NodeId),
+    ) {
+        let branch_center = self.center(nodes);
+        if aabb.min.x < branch_center.x {
+            if aabb.min.y < branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x0_y0_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x0_y0_z1());
+                }
+            }
+            if aabb.max.y > branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x0_y1_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x0_y1_z1());
+                }
+            }
+        }
+        if aabb.max.x > branch_center.x {
+            if aabb.min.y < branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x1_y0_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x1_y0_z1());
+                }
+            }
+            if aabb.max.y > branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x1_y1_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x1_y1_z1());
+                }
+            }
+        }
     }
 
     /// Search which octant is suitable for the position.
