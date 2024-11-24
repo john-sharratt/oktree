@@ -83,10 +83,10 @@
 //!     let c2_id = tree.insert(c2)?;
 //!
 //!     // Searching by position
-//!     assert_eq!(tree.find(TUVec3::new(1, 1, 1)), Some(c1_id));
-//!     assert_eq!(tree.find(TUVec3::new(8, 8, 8)), Some(c2_id));
-//!     assert_eq!(tree.find(TUVec3::new(1, 2, 8)), None);
-//!     assert_eq!(tree.find(TUVec3::splat(100)), None);
+//!     assert_eq!(tree.find(&TUVec3::new(1, 1, 1)), Some(c1_id));
+//!     assert_eq!(tree.find(&TUVec3::new(8, 8, 8)), Some(c2_id));
+//!     assert_eq!(tree.find(&TUVec3::new(1, 2, 8)), None);
+//!     assert_eq!(tree.find(&TUVec3::splat(100)), None);
 //!
 //!     // Searching for the ray intersection
 //!     let ray = RayCast3d::new(Vec3::new(1.5, 7.0, 1.9), Dir3::NEG_Y, 100.0);
@@ -188,6 +188,7 @@
 #[cfg(feature = "bevy")]
 pub mod bevy_integration;
 pub mod bounding;
+mod entry;
 pub mod intersect_with;
 pub mod node;
 pub mod pool;
@@ -294,6 +295,12 @@ where
 ///
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct NodeId(pub u32);
+
+impl Into<ElementId> for NodeId {
+    fn into(self) -> ElementId {
+        ElementId(self.0)
+    }
+}
 
 impl From<NodeId> for usize {
     fn from(value: NodeId) -> Self {
@@ -506,7 +513,7 @@ mod tests {
 
         let c2r = DummyCell::new(TUVec3::new(1, 1, 1));
         assert_eq!(tree.insert(c2r).is_err(), true);
-        assert_eq!(tree.find(TUVec3::new(1, 1, 1)), Some(ElementId(0)));
+        assert_eq!(tree.find(&TUVec3::new(1, 1, 1)), Some(ElementId(0)));
 
         assert_eq!(tree.nodes.len(), 25);
         assert_eq!(tree.elements.len(), 2);
@@ -579,7 +586,7 @@ mod tests {
             let p = random_point();
             let pos = p.position;
             if let Ok(e) = tree.insert(p) {
-                assert_eq!(tree.find(pos), Some(e));
+                assert_eq!(tree.find(&pos), Some(e));
             }
         }
 
@@ -588,9 +595,9 @@ mod tests {
         for element in 0..tree.len() {
             let e = ElementId(element as u32);
             let pos = tree.elements[e].position;
-            assert_eq!(tree.find(pos), Some(e));
+            assert_eq!(tree.find(&pos), Some(e));
             assert_eq!(tree.remove(element.into()), Ok(()));
-            assert_eq!(tree.find(pos), None);
+            assert_eq!(tree.find(&pos), None);
         }
 
         assert_eq!(tree.elements.len(), 0);
@@ -612,16 +619,16 @@ mod tests {
         )))
         .unwrap();
 
-        assert_eq!(tree.find(TUVec3::new(9, 13, 13)), None);
-        assert_eq!(tree.find(TUVec3::new(10, 13, 13)), Some(ElementId(0)));
-        assert_eq!(tree.find(TUVec3::new(13, 13, 13)), Some(ElementId(0)));
-        assert_eq!(tree.find(TUVec3::new(15, 13, 13)), Some(ElementId(0)));
-        assert_eq!(tree.find(TUVec3::new(16, 13, 13)), Some(ElementId(1)));
-        assert_eq!(tree.find(TUVec3::new(19, 13, 13)), Some(ElementId(1)));
-        assert_eq!(tree.find(TUVec3::new(21, 13, 13)), Some(ElementId(1)));
-        assert_eq!(tree.find(TUVec3::new(22, 13, 13)), None);
+        assert_eq!(tree.find(&TUVec3::new(9, 13, 13)), None);
+        assert_eq!(tree.find(&TUVec3::new(10, 13, 13)), Some(ElementId(0)));
+        assert_eq!(tree.find(&TUVec3::new(13, 13, 13)), Some(ElementId(0)));
+        assert_eq!(tree.find(&TUVec3::new(15, 13, 13)), Some(ElementId(0)));
+        assert_eq!(tree.find(&TUVec3::new(16, 13, 13)), Some(ElementId(1)));
+        assert_eq!(tree.find(&TUVec3::new(19, 13, 13)), Some(ElementId(1)));
+        assert_eq!(tree.find(&TUVec3::new(21, 13, 13)), Some(ElementId(1)));
+        assert_eq!(tree.find(&TUVec3::new(22, 13, 13)), None);
 
-        assert_eq!(tree.find(TUVec3::new(13, 9, 13)), None);
+        assert_eq!(tree.find(&TUVec3::new(13, 9, 13)), None);
 
         assert_eq!(
             tree.insert(DummyVolume::new(Aabb::new_unchecked(
@@ -632,9 +639,9 @@ mod tests {
             true
         );
 
-        assert_eq!(tree.find(TUVec3::new(19, 13, 13)), Some(ElementId(1)));
-        assert_eq!(tree.find(TUVec3::new(21, 13, 13)), Some(ElementId(1)));
-        assert_eq!(tree.find(TUVec3::new(22, 13, 13)), None);
+        assert_eq!(tree.find(&TUVec3::new(19, 13, 13)), Some(ElementId(1)));
+        assert_eq!(tree.find(&TUVec3::new(21, 13, 13)), Some(ElementId(1)));
+        assert_eq!(tree.find(&TUVec3::new(22, 13, 13)), None);
 
         let mut hits = HashSet::new();
         tree.intersect_with_for_each(

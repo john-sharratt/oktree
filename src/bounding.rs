@@ -157,19 +157,19 @@ impl<U: Unsigned> TUVec3<U> {
         }
     }
 
-    pub fn lt(&self, other: Self) -> BVec3 {
+    pub fn lt(&self, other: &Self) -> BVec3 {
         BVec3::new(self.x < other.x, self.y < other.y, self.z < other.z)
     }
 
-    pub fn gt(&self, other: Self) -> BVec3 {
+    pub fn gt(&self, other: &Self) -> BVec3 {
         BVec3::new(self.x > other.x, self.y > other.y, self.z > other.z)
     }
 
-    pub fn le(&self, other: Self) -> BVec3 {
+    pub fn le(&self, other: &Self) -> BVec3 {
         BVec3::new(self.x <= other.x, self.y <= other.y, self.z <= other.z)
     }
 
-    pub fn ge(&self, other: Self) -> BVec3 {
+    pub fn ge(&self, other: &Self) -> BVec3 {
         BVec3::new(self.x >= other.x, self.y >= other.y, self.z >= other.z)
     }
 
@@ -347,7 +347,7 @@ impl<U: Unsigned> Aabb<U> {
     }
 
     /// Checks if the aabb contains a [`position`](TUVec3).
-    pub fn contains(&self, position: TUVec3<U>) -> bool {
+    pub fn contains(&self, position: &TUVec3<U>) -> bool {
         let lemin = self.min.le(position);
         let gtmax = self.max.gt(position);
 
@@ -396,13 +396,13 @@ mod tests {
     #[test]
     fn test_aabb_contains() {
         let aabb = Aabb::new_unchecked(TUVec3::new(8, 8, 8), 8u16);
-        assert!(aabb.contains(TUVec3::zero()));
+        assert!(aabb.contains(&TUVec3::zero()));
 
-        assert!(aabb.contains(TUVec3::new(8, 8, 8)));
+        assert!(aabb.contains(&TUVec3::new(8, 8, 8)));
 
-        assert!(!aabb.contains(TUVec3::new(16, 16, 16)));
+        assert!(!aabb.contains(&TUVec3::new(16, 16, 16)));
 
-        assert!(!aabb.contains(TUVec3::new(0, 16, 8)));
+        assert!(!aabb.contains(&TUVec3::new(0, 16, 8)));
     }
 
     #[test]

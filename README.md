@@ -85,10 +85,10 @@ fn main() -> Result<(), TreeError> {
     let c2_id = tree.insert(c2)?;
 
     // Searching by position
-    assert_eq!(tree.find(TUVec3::new(1, 1, 1)), Some(c1_id));
-    assert_eq!(tree.find(TUVec3::new(8, 8, 8)), Some(c2_id));
-    assert_eq!(tree.find(TUVec3::new(1, 2, 8)), None);
-    assert_eq!(tree.find(TUVec3::splat(100)), None);
+    assert_eq!(tree.find(&TUVec3::new(1, 1, 1)), Some(c1_id));
+    assert_eq!(tree.find(&TUVec3::new(8, 8, 8)), Some(c2_id));
+    assert_eq!(tree.find(&TUVec3::new(1, 2, 8)), None);
+    assert_eq!(tree.find(&TUVec3::splat(100)), None);
 
     // Searching for the ray intersection
     let ray = RayCast3d::new(Vec3::new(1.5, 7.0, 1.9), Dir3::NEG_Y, 100.0);

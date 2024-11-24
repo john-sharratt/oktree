@@ -3,7 +3,7 @@
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
     node::{Branch, Node, NodeType},
-    pool::{Pool, PoolElementIterator, PoolIntoIterator, PoolIterator},
+    pool::{Pool, PoolElementIterator, PoolIntoIterator, PoolItem, PoolIterator},
     ElementId, NodeId, TreeError, Volume,
 };
 
@@ -108,14 +108,14 @@ where
                 match self._insert(insertion, &mut insertions) {
                     Ok(e) => was_inserted |= e == Some(element),
                     Err(err) => {
-                        self.elements.remove(element);
+                        self.elements.tombstone(element);
                         return Err(err);
                     }
                 }
             }
 
             if !was_inserted {
-                self.elements.remove(element);
+                self.elements.tombstone(element);
                 return Err(TreeError::AlreadyOccupied(format!(
                     "Elements for volume: {} already exists",
                     volume
@@ -276,7 +276,7 @@ where
                 while let Some(removal) = removals.pop() {
                     self._remove(elem, volume, removal, &mut removals)?;
                 }
-                self.elements.remove(elem);
+                self.elements.tombstone(elem);
                 Ok(())
             } else {
                 return Err(TreeError::OutOfTreeBounds(format!(
@@ -422,14 +422,14 @@ where
     /// let c2 = TUVec3u8::new(4, 5, 6);
     /// let eid = tree.insert(c2).unwrap();
     ///
-    /// assert_eq!(tree.find(TUVec3::new(4, 5, 6)), Some(eid));
-    /// assert_eq!(tree.find(TUVec3::new(2, 2, 2)), None);
+    /// assert_eq!(tree.find(&TUVec3::new(4, 5, 6)), Some(eid));
+    /// assert_eq!(tree.find(&TUVec3::new(2, 2, 2)), None);
     /// ```
-    pub fn find(&self, point: TUVec3<U>) -> Option<ElementId> {
+    pub fn find(&self, point: &TUVec3<U>) -> Option<ElementId> {
         self.rfind(self.root, point)
     }
 
-    fn rfind(&self, mut node: NodeId, point: TUVec3<U>) -> Option<ElementId> {
+    fn rfind(&self, mut node: NodeId, point: &TUVec3<U>) -> Option<ElementId> {
         loop {
             let ntype = self.nodes[node].ntype;
             return match ntype {
@@ -470,7 +470,7 @@ where
     }
 
     /// Returns the element if element exists and not garbaged.
-    pub fn get(&self, point: TUVec3<U>) -> Option<&T> {
+    pub fn get(&self, point: &TUVec3<U>) -> Option<&T> {
         let element = self.find(point)?;
         if self.elements.is_garbaged(element) {
             None
@@ -480,7 +480,7 @@ where
     }
 
     /// Returns the element if element exists and not garbaged.
-    pub fn get_mut(&mut self, point: TUVec3<U>) -> Option<&mut T> {
+    pub fn get_mut(&mut self, point: &TUVec3<U>) -> Option<&mut T> {
         let element = self.find(point)?;
         if self.elements.is_garbaged(element) {
             None
@@ -494,8 +494,13 @@ where
         self.elements
             .vec
             .into_iter()
-            .filter(|e| !e.garbage)
-            .map(|e| e.item)
+            .filter_map(|e| {
+                if let PoolItem::Filled(item) = e {
+                    Some(item)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
