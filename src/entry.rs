@@ -154,7 +154,7 @@ pub struct OccupiedEntry<'a, U: Unsigned, T: Volume<U = U>> {
     element: ElementId,
 }
 
-impl<'a, U: Unsigned, T: Volume<U = U>> fmt::Debug for OccupiedEntry<'a, U, T> {
+impl<U: Unsigned, T: Volume<U = U>> fmt::Debug for OccupiedEntry<'_, U, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OccupiedEntry")
             .field("key", &self.key)
@@ -208,7 +208,7 @@ impl<'a, U: Unsigned, T: Volume<U = U>> OccupiedEntry<'a, U, T> {
     }
 }
 
-impl<'a, U: Unsigned, T: Volume<U = U>> Deref for OccupiedEntry<'a, U, T> {
+impl<U: Unsigned, T: Volume<U = U>> Deref for OccupiedEntry<'_, U, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -216,7 +216,7 @@ impl<'a, U: Unsigned, T: Volume<U = U>> Deref for OccupiedEntry<'a, U, T> {
     }
 }
 
-impl<'a, U: Unsigned, T: Volume<U = U>> DerefMut for OccupiedEntry<'a, U, T> {
+impl<U: Unsigned, T: Volume<U = U>> DerefMut for OccupiedEntry<'_, U, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.get_mut()
     }
@@ -229,7 +229,7 @@ pub struct VacantEntry<'a, U: Unsigned, T: Volume<U = U>> {
     key: TUVec3<U>,
 }
 
-impl<'a, U: Unsigned, T: Volume<U = U>> fmt::Debug for VacantEntry<'a, U, T> {
+impl<U: Unsigned, T: Volume<U = U>> fmt::Debug for VacantEntry<'_, U, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("VacantEntry")
             .field("key", &self.key)
