@@ -37,5 +37,16 @@ name = "bevy_tree"
 path = "examples/bevy_tree.rs"
 required-features = ["bevy"]
 
+[[example]]
+name = "profile"
+path = "examples/profile.rs"
+required-features = ["bevy"]
+
 [package.metadata.docs.rs]
 all-features = true
+
+[profile.profiler]
+inherits = "release"
+debug = true
+split-debuginfo = "full"
+opt-level = 3
