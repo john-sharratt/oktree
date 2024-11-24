@@ -1,6 +1,6 @@
 use super::*;
 use crate::prelude::*;
-use std::fmt;
+use std::{fmt, ops::DerefMut};
 
 impl<U: Unsigned, T: Volume<U = U>> Octree<U, T> {
     /// Gets the given key's corresponding entry in the map for in-place manipulation.
@@ -53,40 +53,20 @@ impl<'a, U: Unsigned, T: Volume<U = U>> Entry<'a, U, T> {
     /// Ensures a value is in the entry by inserting the default if empty, and returns
     /// a mutable reference to the value in the entry.
     #[inline]
-    pub fn or_insert(self, default: T) -> &'a T {
+    pub fn or_insert(self, default: T) -> OccupiedEntry<'a, U, T> {
         match self {
-            Self::Occupied(entry) => entry.into_ref(),
+            Self::Occupied(entry) => entry,
             Self::Vacant(entry) => entry.insert(default),
         }
     }
 
-    /// Ensures a value is in the entry by inserting the default if empty, and returns
-    /// a mutable reference to the value in the entry.
-    #[inline]
-    pub fn or_insert_mut(self, default: T) -> &'a mut T {
-        match self {
-            Self::Occupied(entry) => entry.into_mut(),
-            Self::Vacant(entry) => entry.insert_mut(default),
-        }
-    }
-
     /// Ensures a value is in the entry by inserting the result of the default function if empty,
     /// and returns a mutable reference to the value in the entry.
     #[inline]
-    pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> &'a T {
+    pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> OccupiedEntry<'a, U, T> {
         match self {
-            Self::Occupied(entry) => entry.into_ref(),
+            Self::Occupied(entry) => entry,
             Self::Vacant(entry) => entry.insert(default()),
-        }
-    }
-
-    /// Ensures a value is in the entry by inserting the result of the default function if empty,
-    /// and returns a mutable reference to the value in the entry.
-    #[inline]
-    pub fn or_insert_with_mut<F: FnOnce() -> T>(self, default: F) -> &'a mut T {
-        match self {
-            Self::Occupied(entry) => entry.into_mut(),
-            Self::Vacant(entry) => entry.insert_mut(default()),
         }
     }
 
@@ -94,21 +74,13 @@ impl<'a, U: Unsigned, T: Volume<U = U>> Entry<'a, U, T> {
     /// and returns a mutable reference to the value in the entry if that function was
     /// successful
     #[inline]
-    pub fn or_try_insert_with<F: FnOnce() -> Option<T>>(self, f: F) -> Option<&'a T> {
+    pub fn or_try_insert_with<F: FnOnce() -> Option<T>>(
+        self,
+        f: F,
+    ) -> Option<OccupiedEntry<'a, U, T>> {
         Some(match self {
-            Self::Occupied(entry) => entry.into_ref(),
+            Self::Occupied(entry) => entry,
             Self::Vacant(entry) => entry.insert(f()?),
-        })
-    }
-
-    /// Ensures a value is in the entry by trying to insert the result of function if empty,
-    /// and returns a mutable reference to the value in the entry if that function was
-    /// successful.
-    #[inline]
-    pub fn or_try_insert_with_mut<F: FnOnce() -> Option<T>>(self, f: F) -> Option<&'a mut T> {
-        Some(match self {
-            Self::Occupied(entry) => entry.into_mut(),
-            Self::Vacant(entry) => entry.insert_mut(f()?),
         })
     }
 
@@ -119,26 +91,15 @@ impl<'a, U: Unsigned, T: Volume<U = U>> Entry<'a, U, T> {
     /// The reference to the moved key is provided so that cloning or copying the key is
     /// unnecessary, unlike with `.or_insert_with(|| ... )`.
     #[inline]
-    pub fn or_insert_with_key<F: FnOnce(&TUVec3<U>) -> T>(self, default: F) -> &'a T {
+    pub fn or_insert_with_key<F: FnOnce(&TUVec3<U>) -> T>(
+        self,
+        default: F,
+    ) -> OccupiedEntry<'a, U, T> {
         match self {
-            Self::Occupied(entry) => entry.into_ref(),
+            Self::Occupied(entry) => entry,
             Self::Vacant(entry) => {
                 let value = default(entry.key());
                 entry.insert(value)
-            }
-        }
-    }
-
-    /// Ensures a value is in the entry by inserting, if empty, the result of the default function.
-    /// This method allows for generating key-derived values for insertion by providing the default
-    /// function a reference to the key that was moved during the `.entry(key)` method call.
-    #[inline]
-    pub fn or_insert_with_key_mut<F: FnOnce(&TUVec3<U>) -> T>(self, default: F) -> &'a mut T {
-        match self {
-            Self::Occupied(entry) => entry.into_mut(),
-            Self::Vacant(entry) => {
-                let value = default(entry.key());
-                entry.insert_mut(value)
             }
         }
     }
@@ -209,6 +170,11 @@ impl<'a, U: Unsigned, T: Volume<U = U>> OccupiedEntry<'a, U, T> {
         &self.key
     }
 
+    #[inline]
+    pub fn element(&self) -> ElementId {
+        self.element
+    }
+
     /// Gets a reference to the value in the entry.
     #[inline]
     pub fn get(&self) -> &T {
@@ -236,8 +202,23 @@ impl<'a, U: Unsigned, T: Volume<U = U>> OccupiedEntry<'a, U, T> {
     /// Sets the value of the entry, and returns the entry's old value.
     #[inline]
     pub fn insert(&'a mut self, value: T) -> &'a mut T {
-        let element = self.base.insert(value).unwrap();
-        self.base.get_element_mut(element).unwrap()
+        let ret = self.base.get_element_mut(self.element).unwrap();
+        *ret = value;
+        ret
+    }
+}
+
+impl<'a, U: Unsigned, T: Volume<U = U>> Deref for OccupiedEntry<'a, U, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.get()
+    }
+}
+
+impl<'a, U: Unsigned, T: Volume<U = U>> DerefMut for OccupiedEntry<'a, U, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.get_mut()
     }
 }
 
@@ -273,16 +254,12 @@ impl<'a, U: Unsigned, T: Volume<U = U>> VacantEntry<'a, U, T> {
     /// Sets the value of the entry with the `VacantEntry`'s key,
     /// and returns a mutable reference to it.
     #[inline]
-    pub fn insert(self, value: T) -> &'a T {
+    pub fn insert(self, value: T) -> OccupiedEntry<'a, U, T> {
         let element = self.base.insert(value).unwrap();
-        self.base.get_element(element).unwrap()
-    }
-
-    /// Sets the value of the entry with the `VacantEntry`'s key,
-    /// and returns a mutable reference to it.
-    #[inline]
-    pub fn insert_mut(self, value: T) -> &'a mut T {
-        let element = self.base.insert(value).unwrap();
-        self.base.get_element_mut(element).unwrap()
+        OccupiedEntry {
+            base: self.base,
+            key: self.key,
+            element,
+        }
     }
 }
