@@ -279,10 +279,10 @@ where
                 self.elements.tombstone(elem);
                 Ok(())
             } else {
-                return Err(TreeError::OutOfTreeBounds(format!(
+                Err(TreeError::OutOfTreeBounds(format!(
                     "{volume} is outside of aabb: min: {} max: {}",
                     self.nodes[self.root].aabb.min, self.nodes[self.root].aabb.max,
-                )));
+                )))
             }
         } else {
             Err(TreeError::ElementNotFound(format!(

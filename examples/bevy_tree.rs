@@ -106,8 +106,8 @@ fn spawn_points(
                 let next = tree.0.iter_elements().next();
                 match next {
                     Some(e) => {
-                        let e = e.0.clone();
-                        let _ = tree.0.remove(e);
+                        let e = e.0;
+                        tree.0.remove(e).ok();
                     }
                     None => {
                         counter.0 = 0;

@@ -74,10 +74,7 @@ pub struct Branch {
 
 impl Branch {
     pub(crate) fn new(children: [NodeId; 8]) -> Self {
-        Branch {
-            children,
-            ..Default::default()
-        }
+        Branch { children }
     }
 
     pub fn x0_y0_z0(&self) -> NodeId {

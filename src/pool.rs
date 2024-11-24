@@ -524,7 +524,7 @@ impl<'pool, T> Iterator for PoolIterator<'pool, T> {
             let next = self.inner.next()?;
             match next {
                 PoolItem::Filled(item) => {
-                    return Some(&item);
+                    return Some(item);
                 }
                 PoolItem::Empty => continue,
                 PoolItem::Tombstone(_) => continue,
@@ -547,7 +547,7 @@ impl<T> DoubleEndedIterator for PoolIterator<'_, T> {
             let next = self.inner.next_back()?;
             match next {
                 PoolItem::Filled(item) => {
-                    return Some(&item);
+                    return Some(item);
                 }
                 PoolItem::Empty => continue,
                 PoolItem::Tombstone(_) => continue,

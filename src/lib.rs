@@ -296,9 +296,9 @@ where
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct NodeId(pub u32);
 
-impl Into<ElementId> for NodeId {
-    fn into(self) -> ElementId {
-        ElementId(self.0)
+impl From<NodeId> for ElementId {
+    fn from(value: NodeId) -> Self {
+        ElementId(value.0)
     }
 }
 
@@ -476,7 +476,7 @@ mod tests {
         assert_eq!(tree.nodes.len(), 1);
         assert_eq!(tree.nodes.garbage_len(), 0);
 
-        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.clone().into()));
+        assert_eq!(tree.nodes[0.into()].ntype, NodeType::Leaf(0.into()));
         assert_eq!(tree.nodes[0.into()].parent, None);
 
         let c2 = DummyCell::new(TUVec3::new(7, 7, 7));
@@ -512,7 +512,7 @@ mod tests {
         assert_eq!(tree.nodes.len(), 25);
 
         let c2r = DummyCell::new(TUVec3::new(1, 1, 1));
-        assert_eq!(tree.insert(c2r).is_err(), true);
+        assert!(tree.insert(c2r).is_err());
         assert_eq!(tree.find(&TUVec3::new(1, 1, 1)), Some(ElementId(0)));
 
         assert_eq!(tree.nodes.len(), 25);
@@ -630,14 +630,12 @@ mod tests {
 
         assert_eq!(tree.find(&TUVec3::new(13, 9, 13)), None);
 
-        assert_eq!(
-            tree.insert(DummyVolume::new(Aabb::new_unchecked(
+        assert!(tree
+            .insert(DummyVolume::new(Aabb::new_unchecked(
                 TUVec3::new(20, 13, 13),
                 3,
             )))
-            .is_err(),
-            true
-        );
+            .is_err());
 
         assert_eq!(tree.find(&TUVec3::new(19, 13, 13)), Some(ElementId(1)));
         assert_eq!(tree.find(&TUVec3::new(21, 13, 13)), Some(ElementId(1)));
