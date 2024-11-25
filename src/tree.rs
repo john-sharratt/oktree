@@ -106,7 +106,7 @@ where
             let mut was_inserted = false;
             while let Some(insertion) = insertions.pop() {
                 match self._insert(insertion, &mut insertions) {
-                    Ok(e) => was_inserted |= e == Some(element),
+                    Ok(e) => was_inserted = e == Some(element),
                     Err(err) => {
                         self.elements.tombstone(element);
                         return Err(err);

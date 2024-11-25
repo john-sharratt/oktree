@@ -13,7 +13,6 @@
 //!
 //!   - [`Insertion`](tree::Octree::insert)
 //!   - [`Removing`](tree::Octree::remove)
-//!   - [`Upsert`](tree::Octree::upsert)
 //!   - [`Searching`](tree::Octree::find)
 //!
 //! - ### Floating point operations (Bevy integration)
@@ -354,7 +353,7 @@ impl fmt::Display for ElementId {
 /// Enum of all possible errors of the octree's operations.
 #[derive(Debug, PartialEq)]
 pub enum TreeError {
-    /// Object is out of bounds of tree's [`Aabb`](bounding::Aabb).
+    /// Object is out of bounds of tree's [`Aabb`].
     OutOfTreeBounds(String),
 
     /// Attempt to treat a [`Node`](node::Node) of different type
