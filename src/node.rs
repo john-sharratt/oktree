@@ -4,7 +4,8 @@ use core::fmt;
 
 use crate::{
     bounding::{Aabb, TUVec3, Unsigned},
-    ElementId, NodeId, TreeError,
+    pool::Pool,
+    ElementId, NodeId,
 };
 
 /// [`Octree's`](crate::tree::Octree) node.
@@ -14,7 +15,7 @@ use crate::{
 /// - [`NodeType::Empty`]. Empty node.
 /// - [`NodeType::Leaf`]. Node, containig a single [`ElementId`].
 /// - [`NodeType::Branch`]. Node, containig a 8 child nodes.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Node<U: Unsigned> {
     pub aabb: Aabb<U>,
     pub ntype: NodeType,
@@ -37,19 +38,6 @@ impl<U: Unsigned> Node<U> {
             aabb,
             parent,
             ..Default::default()
-        }
-    }
-
-    /// How many non-empty child nodes contained by this
-    ///
-    /// [`branch`](NodeType::Branch) node.
-    pub fn fullness(&self) -> Result<u8, TreeError> {
-        match self.ntype {
-            NodeType::Branch(Branch { filled, .. }) => Ok(filled),
-            _ => Err(TreeError::NotBranch(format!(
-                "Attemt to get child count for {} node",
-                self.ntype
-            ))),
         }
     }
 }
@@ -82,28 +70,149 @@ impl fmt::Display for NodeType {
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
 pub struct Branch {
     pub children: [NodeId; 8],
-    pub filled: u8,
 }
 
 impl Branch {
     pub(crate) fn new(children: [NodeId; 8]) -> Self {
-        Branch {
-            children,
-            ..Default::default()
+        Branch { children }
+    }
+
+    #[inline(always)]
+    pub fn x0_y0_z0(&self) -> NodeId {
+        self.children[0]
+    }
+
+    #[inline(always)]
+    pub fn x1_y0_z0(&self) -> NodeId {
+        self.children[1]
+    }
+
+    #[inline(always)]
+    pub fn x0_y1_z0(&self) -> NodeId {
+        self.children[2]
+    }
+
+    #[inline(always)]
+    pub fn x1_y1_z0(&self) -> NodeId {
+        self.children[3]
+    }
+
+    #[inline(always)]
+    pub fn x0_y0_z1(&self) -> NodeId {
+        self.children[4]
+    }
+
+    #[inline(always)]
+    pub fn x1_y0_z1(&self) -> NodeId {
+        self.children[5]
+    }
+
+    #[inline(always)]
+    pub fn x0_y1_z1(&self) -> NodeId {
+        self.children[6]
+    }
+
+    #[inline(always)]
+    pub fn x1_y1_z1(&self) -> NodeId {
+        self.children[7]
+    }
+
+    #[inline]
+    pub fn center<U: Unsigned>(&self, nodes: &Pool<Node<U>>) -> TUVec3<U> {
+        let node = nodes[self.x0_y0_z0()];
+        node.aabb.max
+    }
+
+    #[inline]
+    pub(crate) fn walk_children_inclusive<U: Unsigned>(
+        &self,
+        nodes: &Pool<Node<U>>,
+        aabb: &Aabb<U>,
+        mut f: impl FnMut(NodeId),
+    ) {
+        let branch_center = self.center(nodes);
+        if aabb.min.x <= branch_center.x {
+            if aabb.min.y <= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x0_y0_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x0_y0_z1());
+                }
+            }
+            if aabb.max.y >= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x0_y1_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x0_y1_z1());
+                }
+            }
+        }
+        if aabb.max.x >= branch_center.x {
+            if aabb.min.y <= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x1_y0_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x1_y0_z1());
+                }
+            }
+            if aabb.max.y >= branch_center.y {
+                if aabb.min.z <= branch_center.z {
+                    f(self.x1_y1_z0());
+                }
+                if aabb.max.z >= branch_center.z {
+                    f(self.x1_y1_z1());
+                }
+            }
         }
     }
 
-    pub(crate) fn from_filled(children: [NodeId; 8], filled: u8) -> Self {
-        Branch { children, filled }
-    }
-
-    pub(crate) fn increment(&mut self) {
-        self.filled += 1;
-        debug_assert!(self.filled <= 8);
-    }
-
-    pub(crate) fn decrement(&mut self) {
-        self.filled -= 1;
+    #[inline]
+    pub(crate) fn walk_children_exclusive<U: Unsigned>(
+        &self,
+        nodes: &Pool<Node<U>>,
+        aabb: &Aabb<U>,
+        mut f: impl FnMut(NodeId),
+    ) {
+        let branch_center = self.center(nodes);
+        if aabb.min.x < branch_center.x {
+            if aabb.min.y < branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x0_y0_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x0_y0_z1());
+                }
+            }
+            if aabb.max.y > branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x0_y1_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x0_y1_z1());
+                }
+            }
+        }
+        if aabb.max.x > branch_center.x {
+            if aabb.min.y < branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x1_y0_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x1_y0_z1());
+                }
+            }
+            if aabb.max.y > branch_center.y {
+                if aabb.min.z < branch_center.z {
+                    f(self.x1_y1_z0());
+                }
+                if aabb.max.z > branch_center.z {
+                    f(self.x1_y1_z1());
+                }
+            }
+        }
     }
 
     /// Search which octant is suitable for the position.
@@ -111,7 +220,7 @@ impl Branch {
     /// * `position`: Element's position
     /// * `center`: center of the current node's [`Aabb`]
     #[inline(always)]
-    pub fn find_child<U: Unsigned>(&self, position: TUVec3<U>, center: TUVec3<U>) -> NodeId {
+    pub fn find_child<U: Unsigned>(&self, position: &TUVec3<U>, center: TUVec3<U>) -> NodeId {
         let x = if position.x < center.x { 0 } else { 1 };
         let y = if position.y < center.y { 0 } else { 1 };
         let z = if position.z < center.z { 0 } else { 1 };

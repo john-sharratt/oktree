@@ -6,25 +6,34 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+use smallvec::SmallVec;
+
 use crate::{
     bounding::{Aabb, Unsigned},
     node::{Node, NodeType},
-    ElementId, NodeId, Position, TreeError,
+    ElementId, NodeId, Volume,
 };
 
 /// [`PoolItem`] data structure that combines both the garbage flag
 /// and the actual item together for better cache locality.
-#[repr(align(8))]
 #[derive(Clone)]
-pub(crate) struct PoolItem<T> {
-    pub(crate) item: T,
-    pub(crate) garbage: bool,
+pub(crate) enum PoolItem<T> {
+    Filled(T),
+    Tombstone(T),
+    Empty,
 }
 impl<T> From<T> for PoolItem<T> {
     fn from(item: T) -> Self {
-        PoolItem {
-            item,
-            garbage: false,
+        PoolItem::Filled(item)
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for PoolItem<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PoolItem::Filled(item) => write!(f, "Filled({:?})", item),
+            PoolItem::Tombstone(item) => write!(f, "Garbage({:?})", item),
+            PoolItem::Empty => write!(f, "Empty"),
         }
     }
 }
@@ -66,7 +75,7 @@ impl<U: Unsigned> Pool<Node<U>> {
     }
 }
 
-impl<T: Position> Default for Pool<T> {
+impl<T: Volume> Default for Pool<T> {
     fn default() -> Self {
         Pool {
             vec: Default::default(),
@@ -74,7 +83,7 @@ impl<T: Position> Default for Pool<T> {
         }
     }
 }
-impl<T: Position> Pool<T> {
+impl<T: Volume> Pool<T> {
     /// Clears all the items in the pool
     pub fn clear(&mut self) {
         self.vec.clear();
@@ -82,7 +91,16 @@ impl<T: Position> Pool<T> {
     }
 }
 
-impl Default for Pool<NodeId> {
+impl<T: std::fmt::Debug> std::fmt::Debug for Pool<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pool")
+            .field("vec", &self.vec)
+            .field("garbage", &self.garbage)
+            .finish()
+    }
+}
+
+impl Default for Pool<SmallVec<[NodeId; 1]>> {
     fn default() -> Self {
         Pool {
             vec: Default::default(),
@@ -90,7 +108,7 @@ impl Default for Pool<NodeId> {
         }
     }
 }
-impl Pool<NodeId> {
+impl Pool<SmallVec<[NodeId; 1]>> {
     /// Clears all the items in the pool
     pub fn clear(&mut self) {
         self.vec.clear();
@@ -135,7 +153,7 @@ impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
 /// let element = &tree.element[ElementId(42)];
 /// // let element = &tree.element[NodeId(42)]; // Error
 /// ```
-impl<T: Position> Index<ElementId> for Pool<T> {
+impl<T: Volume> Index<ElementId> for Pool<T> {
     type Output = T;
 
     fn index(&self, index: ElementId) -> &Self::Output {
@@ -153,7 +171,7 @@ impl<T: Position> Index<ElementId> for Pool<T> {
 /// let mut element = &mut tree.element[ElementId(42)];
 /// // let mut element = &mut tree.element[NodeId(42)]; // Error
 /// ```
-impl<T: Position> IndexMut<ElementId> for Pool<T> {
+impl<T: Volume> IndexMut<ElementId> for Pool<T> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
             !self.is_garbaged(index),
@@ -201,11 +219,10 @@ impl<T> Pool<T> {
     #[inline(always)]
     fn _insert(&mut self, t: T) -> usize {
         if let Some(idx) = self.garbage.pop() {
-            self.vec[idx].garbage = false;
-            self.vec[idx].item = t;
+            self.vec[idx] = PoolItem::Filled(t);
             idx
         } else {
-            self.vec.push(t.into());
+            self.vec.push(PoolItem::Filled(t));
             self.vec.len() - 1
         }
     }
@@ -214,7 +231,21 @@ impl<T> Pool<T> {
     /// this is a rollback of all the remove operations that happened
     pub fn restore_garbage(&mut self) {
         for idx in self.garbage.drain(..) {
-            self.vec[idx].garbage = false;
+            let mut item = PoolItem::Empty;
+            std::mem::swap(&mut self.vec[idx], &mut item);
+            self.vec[idx] = match item {
+                PoolItem::Filled(item) => PoolItem::Filled(item),
+                PoolItem::Tombstone(item) => PoolItem::Filled(item),
+                PoolItem::Empty => PoolItem::Empty,
+            }
+        }
+    }
+
+    /// Collects all the garbage elements and removes them from the pool
+    /// releasing the memory and invoking the destructor
+    pub fn collect_garbage(&mut self) {
+        for idx in self.garbage.drain(..) {
+            self.vec[idx] = PoolItem::Empty;
         }
     }
 
@@ -312,105 +343,133 @@ impl<U: Unsigned> Pool<Node<U>> {
     }
 
     #[inline(always)]
-    pub(crate) fn remove(&mut self, node: NodeId) {
-        let index: usize = node.into();
-        self.vec[index].garbage = true;
-        self.garbage.push(index);
-    }
-
-    #[inline(always)]
     pub(crate) fn branch(&mut self, parent: NodeId) -> [NodeId; 8] {
         let aabbs = self[parent].aabb.split();
         from_fn(|i| self.insert(Node::from_aabb(aabbs[i], Some(parent))))
     }
 
-    pub(crate) fn collapse(
-        &mut self,
-        parent: Option<NodeId>,
-    ) -> Result<Option<(ElementId, NodeId)>, TreeError> {
-        if let Some(parent) = parent {
-            let mut p = self[parent];
-
-            match p.ntype {
-                NodeType::Branch(ref mut branch) => {
-                    branch.decrement();
-                    match branch.filled {
-                        0 => {
-                            let children = branch.children;
-                            p.ntype = NodeType::Empty;
-                            self[parent] = p;
-                            children.map(|child| self.remove(child));
-                            return self.collapse(p.parent);
-                        }
-
-                        1 => {
-                            for child in branch.children {
-                                let c = self[child];
-                                match c.ntype {
-                                    NodeType::Leaf(element) => {
-                                        let children = branch.children;
-                                        p.ntype = NodeType::Leaf(element);
-                                        self[parent] = p;
-                                        children.map(|child| self.remove(child));
-                                        return Ok(Some((element, parent)));
-                                    }
-                                    NodeType::Branch(_) => break,
-                                    NodeType::Empty => (),
-                                }
-                            }
-                        }
-
-                        _ => (),
+    pub(crate) fn maybe_collapse(&mut self, parent: NodeId) {
+        let mut current = Some(parent);
+        while let Some(parent) = current.take() {
+            if let NodeType::Branch(ref branch) = self[parent].ntype {
+                if branch
+                    .children
+                    .iter()
+                    .all(|&child| self[child].ntype == NodeType::Empty)
+                {
+                    for child in branch.children {
+                        self.tombstone(child);
                     }
-                }
-                _ => {
-                    return Err(TreeError::NotBranch(format!(
-                        "Attempt to collapse a node of type {}",
-                        p.ntype
-                    )))
+                    self[parent].ntype = NodeType::Empty;
+                    current = self[parent].parent;
                 }
             }
-
-            self[parent] = p;
         }
-        Ok(None)
-    }
-
-    #[inline(always)]
-    pub fn get(&self, node: NodeId) -> Option<&Node<U>> {
-        if !self.is_garbaged(node) {
-            self.vec.get(node.0 as usize).map(|node| &node.item)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub fn get_mut(&mut self, node: NodeId) -> Option<&mut Node<U>> {
-        if !self.is_garbaged(node) {
-            self.vec.get_mut(node.0 as usize).map(|node| &mut node.item)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub fn get_unchecked(&self, node: NodeId) -> &Node<U> {
-        &self.vec[node.0 as usize].item
-    }
-
-    #[inline(always)]
-    pub fn get_mut_unchecked(&mut self, node: NodeId) -> &mut Node<U> {
-        &mut self.vec[node.0 as usize].item
-    }
-
-    #[inline(always)]
-    pub fn is_garbaged(&self, node: NodeId) -> bool {
-        self.vec[node.0 as usize].garbage
     }
 }
 
-impl<T: Position> Pool<T> {
+impl<T> Pool<T> {
+    #[inline(always)]
+    pub(crate) fn tombstone(&mut self, element: impl Into<ElementId>) {
+        let element = Into::<ElementId>::into(element);
+        let index: usize = element.into();
+
+        let mut item = PoolItem::Empty;
+        std::mem::swap(&mut self.vec[index], &mut item);
+        self.vec[index] = match item {
+            PoolItem::Filled(item) => {
+                self.garbage.push(index);
+                PoolItem::Tombstone(item)
+            }
+            PoolItem::Tombstone(item) => PoolItem::Tombstone(item),
+            PoolItem::Empty => PoolItem::Empty,
+        };
+    }
+
+    #[inline(always)]
+    pub(crate) fn remove(&mut self, element: impl Into<ElementId>) -> Option<T> {
+        let element = Into::<ElementId>::into(element);
+        let index: usize = element.into();
+
+        let mut ret = None;
+
+        let mut item = PoolItem::Empty;
+        std::mem::swap(&mut self.vec[index], &mut item);
+        self.vec[index] = match item {
+            PoolItem::Filled(item) => {
+                ret = Some(item);
+                PoolItem::Empty
+            }
+            PoolItem::Tombstone(item) => {
+                ret = Some(item);
+                PoolItem::Empty
+            }
+            PoolItem::Empty => PoolItem::Empty,
+        };
+        ret
+    }
+
+    #[inline(always)]
+    pub fn get(&self, element: impl Into<ElementId>) -> Option<&T> {
+        let element = Into::<ElementId>::into(element);
+        self.vec.get(element.0 as usize).and_then(|item| {
+            if let PoolItem::Filled(ref item) = item {
+                Some(item)
+            } else {
+                None
+            }
+        })
+    }
+
+    #[inline(always)]
+    pub fn get_mut(&mut self, element: impl Into<ElementId>) -> Option<&mut T> {
+        let element = Into::<ElementId>::into(element);
+        self.vec.get_mut(element.0 as usize).and_then(|item| {
+            if let PoolItem::Filled(ref mut item) = item {
+                Some(item)
+            } else {
+                None
+            }
+        })
+    }
+
+    #[inline(always)]
+    pub fn get_unchecked(&self, element: impl Into<ElementId>) -> &T {
+        let element = Into::<ElementId>::into(element);
+        if let PoolItem::Filled(ref item) = self.vec[element.0 as usize] {
+            item
+        } else {
+            unreachable!("Accessing garbaged element: {element}")
+        }
+    }
+
+    #[inline(always)]
+    pub fn get_mut_unchecked(&mut self, element: impl Into<ElementId>) -> &mut T {
+        let element = Into::<ElementId>::into(element);
+        if let PoolItem::Filled(ref mut item) = self.vec[element.0 as usize] {
+            item
+        } else {
+            unreachable!("Accessing garbaged element: {element}")
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_garbaged(&self, element: impl Into<ElementId>) -> bool {
+        let idx: usize = Into::<ElementId>::into(element).into();
+        match &self.vec[idx] {
+            PoolItem::Filled(_) => false,
+            PoolItem::Tombstone(_) => true,
+            PoolItem::Empty => true,
+        }
+    }
+
+    #[inline(always)]
+    pub fn has_garbage(&self) -> bool {
+        !self.garbage.is_empty()
+    }
+}
+
+impl<T: Volume> Pool<T> {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Pool {
             vec: Vec::with_capacity(capacity),
@@ -421,54 +480,6 @@ impl<T: Position> Pool<T> {
     #[inline(always)]
     pub(crate) fn insert(&mut self, t: T) -> ElementId {
         self._insert(t).into()
-    }
-
-    #[inline(always)]
-    pub(crate) fn remove(&mut self, element: ElementId) {
-        let index: usize = element.into();
-        self.vec[index].garbage = true;
-        self.garbage.push(index);
-    }
-
-    #[inline(always)]
-    pub fn get(&self, element: ElementId) -> Option<&T> {
-        if !self.is_garbaged(element) {
-            self.vec.get(element.0 as usize).map(|item| &item.item)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub fn get_mut(&mut self, element: ElementId) -> Option<&mut T> {
-        if !self.is_garbaged(element) {
-            self.vec
-                .get_mut(element.0 as usize)
-                .map(|item| &mut item.item)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub fn get_unchecked(&self, element: ElementId) -> &T {
-        &self.vec[element.0 as usize].item
-    }
-
-    #[inline(always)]
-    pub fn get_mut_unchecked(&mut self, element: ElementId) -> &mut T {
-        &mut self.vec[element.0 as usize].item
-    }
-
-    #[inline(always)]
-    pub fn is_garbaged(&self, element: ElementId) -> bool {
-        let idx: usize = element.into();
-        self.vec[idx].garbage
-    }
-
-    #[inline(always)]
-    pub fn has_garbage(&self) -> bool {
-        !self.garbage.is_empty()
     }
 }
 
@@ -483,48 +494,6 @@ impl Pool<NodeId> {
     #[inline(always)]
     pub(crate) fn insert(&mut self, t: NodeId) -> ElementId {
         self._insert(t).into()
-    }
-
-    #[inline(always)]
-    pub(crate) fn remove(&mut self, element: ElementId) {
-        let index: usize = element.into();
-        self.vec[index].garbage = true;
-        self.garbage.push(index);
-    }
-
-    #[inline(always)]
-    pub fn get(&self, element: ElementId) -> Option<&NodeId> {
-        if !self.is_garbaged(element) {
-            self.vec.get(element.0 as usize).map(|item| &item.item)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub fn get_mut(&mut self, element: ElementId) -> Option<&mut NodeId> {
-        if !self.is_garbaged(element) {
-            self.vec
-                .get_mut(element.0 as usize)
-                .map(|item| &mut item.item)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub fn get_unchecked(&self, element: ElementId) -> &NodeId {
-        &self.vec[element.0 as usize].item
-    }
-
-    #[inline(always)]
-    pub fn get_mut_unchecked(&mut self, element: ElementId) -> &mut NodeId {
-        &mut self.vec[element.0 as usize].item
-    }
-
-    #[inline(always)]
-    pub fn is_garbaged(&self, element: ElementId) -> bool {
-        self.vec[element.0 as usize].garbage
     }
 }
 
@@ -553,8 +522,12 @@ impl<'pool, T> Iterator for PoolIterator<'pool, T> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next()?;
-            if !next.garbage {
-                return Some(&next.item);
+            match next {
+                PoolItem::Filled(item) => {
+                    return Some(item);
+                }
+                PoolItem::Empty => continue,
+                PoolItem::Tombstone(_) => continue,
             }
         }
     }
@@ -572,8 +545,12 @@ impl<T> DoubleEndedIterator for PoolIterator<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next_back()?;
-            if !next.garbage {
-                return Some(&next.item);
+            match next {
+                PoolItem::Filled(item) => {
+                    return Some(item);
+                }
+                PoolItem::Empty => continue,
+                PoolItem::Tombstone(_) => continue,
             }
         }
     }
@@ -615,8 +592,12 @@ impl<'pool, T> Iterator for PoolElementIterator<'pool, T> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next()?;
-            if !next.1.garbage {
-                return Some((ElementId(next.0 as u32), &next.1.item));
+            match next.1 {
+                PoolItem::Filled(item) => {
+                    return Some((ElementId(next.0 as u32), item));
+                }
+                PoolItem::Empty => continue,
+                PoolItem::Tombstone(_) => continue,
             }
         }
     }
@@ -634,8 +615,12 @@ impl<T> DoubleEndedIterator for PoolElementIterator<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next_back()?;
-            if !next.1.garbage {
-                return Some((ElementId(next.0 as u32), &next.1.item));
+            match next.1 {
+                PoolItem::Filled(item) => {
+                    return Some((ElementId(next.0 as u32), item));
+                }
+                PoolItem::Empty => continue,
+                PoolItem::Tombstone(_) => continue,
             }
         }
     }
@@ -677,8 +662,12 @@ impl<T> Iterator for PoolIntoIterator<T> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next()?;
-            if !next.garbage {
-                return Some(next.item);
+            match next {
+                PoolItem::Filled(item) => {
+                    return Some(item);
+                }
+                PoolItem::Empty => continue,
+                PoolItem::Tombstone(_) => continue,
             }
         }
     }
@@ -696,8 +685,12 @@ impl<T> DoubleEndedIterator for PoolIntoIterator<T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let next = self.inner.next_back()?;
-            if !next.garbage {
-                return Some(next.item);
+            match next {
+                PoolItem::Filled(item) => {
+                    return Some(item);
+                }
+                PoolItem::Empty => continue,
+                PoolItem::Tombstone(_) => continue,
             }
         }
     }

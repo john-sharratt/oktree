@@ -145,7 +145,7 @@ fn octree_remove(tree: &mut Octree<usize, DummyCell<usize>>) {
 
 fn octree_find(tree: &Octree<usize, DummyCell<usize>>, points: &[DummyCell<usize>]) {
     for p in points {
-        let _ = tree.find(p.position);
+        let _ = tree.find(&p.position);
     }
 }
 

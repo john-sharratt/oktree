@@ -4,8 +4,12 @@ use bevy::{color::palettes::css::RED, prelude::*};
 use oktree::prelude::*;
 use rand::Rng;
 
-const SIZE: u32 = 256;
+const RANGE: u32 = 256;
+const SIZE: u32 = 16;
 const COUNTER: usize = 1024;
+//const COUNTER: usize = 3;
+const SPAWN_VOLUME_FREQUENCY: f64 = 0.05;
+const SPAWN_FREQUENCY: Duration = Duration::from_millis(10);
 
 fn main() {
     App::new()
@@ -17,21 +21,19 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.insert_resource(Tree(Octree::from_aabb(Aabb::new_unchecked(
-        TUVec3::splat(SIZE / 2),
-        SIZE / 2,
-    ))));
+    let tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::splat(RANGE / 2), RANGE / 2));
+    commands.insert_resource(Tree(tree));
 
     commands.insert_resource(SpawnTimer {
-        timer: Timer::new(Duration::from_millis(10), TimerMode::Repeating),
+        timer: Timer::new(SPAWN_FREQUENCY, TimerMode::Repeating),
     });
 
     commands.insert_resource(Mode::Insert);
 
     commands.insert_resource(Counter(0));
 
-    let position = Transform::from_xyz(-(SIZE as f32), 0.0, (SIZE / 2) as f32)
-        .looking_at(Vec3::splat((SIZE / 2) as f32), Vec3::Z);
+    let position = Transform::from_xyz(-(RANGE as f32), 0.0, (RANGE / 2) as f32)
+        .looking_at(Vec3::splat((RANGE / 2) as f32), Vec3::Z);
     commands.spawn((
         Camera3dBundle {
             transform: position,
@@ -57,7 +59,12 @@ fn draw_nodes(mut gizmos: Gizmos, tree: Res<Tree>) {
 
 fn draw_elements(mut gizmos: Gizmos, tree: Res<Tree>) {
     for element in tree.0.iter() {
-        gizmos.sphere(element.position.into(), Quat::IDENTITY, 1.0, RED);
+        gizmos.sphere(
+            element.volume().center().into(),
+            Quat::IDENTITY,
+            element.volume().size() as f32,
+            RED,
+        );
     }
 }
 
@@ -75,22 +82,37 @@ fn spawn_points(
             Mode::Insert => {
                 let mut rnd = rand::thread_rng();
                 let position = TUVec3 {
-                    x: rnd.gen_range(0..SIZE),
-                    y: rnd.gen_range(0..SIZE),
-                    z: rnd.gen_range(0..SIZE),
+                    x: rnd.gen_range(0..RANGE),
+                    y: rnd.gen_range(0..RANGE),
+                    z: rnd.gen_range(0..RANGE),
                 };
-                let c = DummyCell::new(position);
-                let _ = tree.0.insert(c);
+                if rnd.gen_bool(SPAWN_VOLUME_FREQUENCY) {
+                    let c = DummyVolume::new(position, rnd.gen_range(0..SIZE));
+                    tree.0.insert(c).ok();
+                } else {
+                    let c = DummyCell::new(position);
+                    tree.0
+                        .insert(DummyVolume {
+                            aabb: c.position().unit_aabb(),
+                        })
+                        .ok();
+                }
                 counter.0 += 1;
                 if counter.0 >= COUNTER {
                     *mode = Mode::Remove;
                 }
             }
             Mode::Remove => {
-                counter.0 -= 1;
-                let _ = tree.0.remove(counter.0.into());
-                if counter.0 == 0 {
-                    *mode = Mode::Insert;
+                let next = tree.0.iter_elements().next();
+                match next {
+                    Some(e) => {
+                        let e = e.0;
+                        tree.0.remove(e).ok();
+                    }
+                    None => {
+                        counter.0 = 0;
+                        *mode = Mode::Insert;
+                    }
                 }
             }
         }
@@ -98,7 +120,7 @@ fn spawn_points(
 }
 
 #[derive(Resource)]
-struct Tree(Octree<u32, DummyCell<u32>>);
+struct Tree(Octree<u32, DummyVolume<u32>>);
 
 #[derive(Resource)]
 struct SpawnTimer {
@@ -131,5 +153,24 @@ impl<U: Unsigned> Position for DummyCell<U> {
 impl<U: Unsigned> DummyCell<U> {
     fn new(position: TUVec3<U>) -> Self {
         DummyCell { position }
+    }
+}
+
+struct DummyVolume<U: Unsigned> {
+    aabb: Aabb<U>,
+}
+
+impl<U: Unsigned> Volume for DummyVolume<U> {
+    type U = U;
+    fn volume(&self) -> Aabb<Self::U> {
+        self.aabb
+    }
+}
+
+impl<U: Unsigned> DummyVolume<U> {
+    fn new(position: TUVec3<U>, size: U) -> Self {
+        DummyVolume {
+            aabb: Aabb::new_unchecked(position, size),
+        }
     }
 }

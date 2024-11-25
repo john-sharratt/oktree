@@ -3045,6 +3045,7 @@ dependencies = [
  "heapless",
  "num",
  "rand",
+ "smallvec",
 ]
 
 [[package]]
