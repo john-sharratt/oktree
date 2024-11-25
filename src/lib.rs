@@ -41,14 +41,14 @@
 //! ## Benchmark
 //! Octree dimensions: `4096x4096x4096`
 //!
-//! | Operation           | Quantity                         | Time  |
-//! | ------------------- | -------------------------------- | ----- |
-//! | insertion           | 65536 cells                      | 14 ms |
-//! | removing            | 65536 cells                      | 7 ms  |
-//! | find                | 65536 searches in 65536 cells    | 10 ms |
-//! | ray intersection    | 4096 rays against 65536 cells    | 45 ms |
-//! | sphere intersection | 4096 spheres against 65536 cells | 10 ms |
-//! | box intersection    | 4096 boxes against 65536 cells   | 9 ms  |
+//! | Operation           | Quantity                         | Time   |
+//! | ------------------- | -------------------------------- | ------ |
+//! | insertion           | 65536 cells                      | 21 ms  |
+//! | removing            | 65536 cells                      | 1.5 ms |
+//! | find                | 65536 searches in 65536 cells    | 12 ms  |
+//! | ray intersection    | 4096 rays against 65536 cells    | 37 ms  |
+//! | sphere intersection | 4096 spheres against 65536 cells | 8 ms   |
+//! | box intersection    | 4096 boxes against 65536 cells   | 7 ms   |
 //!
 //! Run benchmark:
 //!
@@ -213,30 +213,6 @@ pub trait Position {
 
     fn position(&self) -> TUVec3<Self::U>;
 }
-
-/*
-impl<T> Position for Cow<'_, T>
-where
-    T: Position + Clone,
-{
-    type U = T::U;
-
-    fn position(&self) -> TUVec3<Self::U> {
-        self.deref().position()
-    }
-}
-
-impl<T> Position for Arc<T>
-where
-    T: Position,
-{
-    type U = T::U;
-
-    fn position(&self) -> TUVec3<Self::U> {
-        self.deref().position()
-    }
-}
-*/
 
 impl<T> Position for Box<T>
 where
