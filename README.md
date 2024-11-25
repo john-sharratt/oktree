@@ -15,7 +15,6 @@ Could be used with the Bevy game engine for fast processing of voxel data or as 
 
   - [`Insertion`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.insert)
   - [`Removing`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.remove)
-  - [`Upsert`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.upsert)
   - [`Searching`](https://docs.rs/oktree/latest/oktree/tree/struct.Octree.html#method.find)
 
 - ### Floating point operations (Bevy integration)
