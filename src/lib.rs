@@ -769,4 +769,24 @@ mod tests {
             ]
         )
     }
+
+    #[test]
+    fn test_overlap() {
+        let mut tree = Octree::from_aabb(Aabb::new_unchecked(TUVec3::splat(8u16), 8));
+
+        let v1_volume = Aabb::new(TUVec3::new(9, 5, 4), 4).unwrap();
+        let v1 = DummyVolume::new(v1_volume);
+        assert_eq!(tree.insert(v1), Ok(ElementId(0)));
+
+        let v2_volume = Aabb::new(TUVec3::new(14, 14, 4), 4).unwrap();
+        let v2 = DummyVolume::new(v2_volume);
+        assert_eq!(tree.insert(v2), Ok(ElementId(1)));
+
+        let v3_volume = Aabb::new(TUVec3::new(7, 5, 4), 4).unwrap();
+        let v3 = DummyVolume::new(v3_volume);
+        assert!(tree.insert(v3).is_err());
+
+        assert!(!v1_volume.overlaps(&v2_volume));
+        assert!(v1_volume.overlaps(&v3_volume));
+    }
 }
