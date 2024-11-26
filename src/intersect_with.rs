@@ -1,3 +1,5 @@
+//! Helper functions with a custom intersection closure.
+
 use heapless::Vec as HVec;
 
 use crate::{
