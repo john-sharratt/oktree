@@ -181,6 +181,8 @@ where
     pub fn intersect<Volume: IntersectsVolume<Aabb3d>>(&self, volume: &Volume) -> Vec<ElementId> {
         let mut elements = Vec::with_capacity(10);
         self.rintersect(self.root, volume, &mut elements);
+        elements.sort();
+        elements.dedup();
         elements
     }
 
@@ -321,7 +323,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use bevy::math::Dir3A;
+    use bevy::math::{Dir3, Dir3A};
 
     use crate::Position;
 
@@ -343,6 +345,27 @@ mod tests {
         fn new(position: TUVec3<U>) -> Self {
             DummyCell {
                 position,
+                node: Default::default(),
+            }
+        }
+    }
+
+    struct DummyVolume<U: Unsigned> {
+        aabb: Aabb<U>,
+        node: NodeId,
+    }
+
+    impl<U: Unsigned> Volume for DummyVolume<U> {
+        type U = U;
+        fn volume(&self) -> Aabb<U> {
+            self.aabb
+        }
+    }
+
+    impl<U: Unsigned> DummyVolume<U> {
+        fn new(aabb: Aabb<U>) -> Self {
+            Self {
+                aabb,
                 node: Default::default(),
             }
         }
@@ -471,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn intersect_volume() {
+    fn intersect_point_volume() {
         let aabb = Aabb::new_unchecked(TUVec3::splat(16u16), 16);
         let mut tree = Octree::from_aabb(aabb);
 
@@ -513,5 +536,63 @@ mod tests {
         let mut test = tree.intersect(&sphere3);
         test.sort();
         assert_eq!(test, vec![]);
+    }
+
+    #[test]
+    fn intersect_volume_volume() {
+        let aabb = Aabb::new(TUVec3::splat(8), 8u8).unwrap();
+        let mut tree = Octree::from_aabb_with_capacity(aabb, 10);
+
+        let v1_volume = Aabb::new(TUVec3::new(9, 5, 4), 4).unwrap();
+        let v1 = DummyVolume::new(v1_volume);
+        let v1_id = tree.insert(v1).unwrap();
+
+        let v2_volume = Aabb::new(TUVec3::new(14, 14, 4), 4).unwrap();
+        let v2 = DummyVolume::new(v2_volume);
+        let v2_id = tree.insert(v2).unwrap();
+
+        let v3_volume = Aabb::new(TUVec3::new(7, 5, 4), 4).unwrap();
+        let v3 = DummyVolume::new(v3_volume);
+        assert!(tree.insert(v3).is_err());
+        //
+        // Searching by point
+        assert_eq!(tree.find(&TUVec3::new(9, 5, 4)), Some(v1_id));
+        assert_eq!(tree.find(&TUVec3::new(16, 12, 2)), Some(v2_id));
+        assert_eq!(tree.find(&TUVec3::new(1, 2, 8)), None);
+        assert_eq!(tree.find(&TUVec3::splat(100)), None);
+
+        let ray = RayCast3d::new(Vec3::new(9.0, 15.0, 4.0), Dir3::NEG_Y, 100.0);
+
+        // Hit!
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: Some(ElementId(0)),
+                distance: 6.0
+            }
+        );
+
+        assert_eq!(tree.remove(ElementId(0)), Ok(()));
+
+        // Miss!
+        assert_eq!(
+            tree.ray_cast(&ray),
+            HitResult {
+                element: None,
+                distance: 0.0
+            }
+        );
+
+        let v1_volume = Aabb::new(TUVec3::new(9, 5, 4), 4).unwrap();
+        let v1 = DummyVolume::new(v1_volume);
+        let v1_id = tree.insert(v1).unwrap();
+
+        // Aabb intersection
+        let aabb = Aabb3d::new(Vec3::splat(8.0), Vec3::splat(8.0));
+        assert_eq!(tree.intersect(&aabb), vec![v1_id, v2_id]);
+
+        // Sphere intersection
+        let sphere = BoundingSphere::new(Vec3::new(15.0, 15.0, 0.0), 5.0);
+        assert_eq!(tree.intersect(&sphere), vec![v2_id]);
     }
 }

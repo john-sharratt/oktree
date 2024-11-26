@@ -5,7 +5,9 @@
 //!
 //! ![Example](https://raw.githubusercontent.com/exor2008/oktree/main/assets/example.gif)
 //!
-//! Could be used with the Bevy game engine for fast processing of voxel data or as a standalone tree.
+//! Able to operate with [`Position`] or [`Volume`] data.
+//!
+//! Could be used with the Bevy game engine or as a standalone tree.
 //!
 //! ## Available methods:
 //!
@@ -24,7 +26,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! oktree = { version = "0.2.0", features = ["bevy"] }
+//! oktree = { version = "0.4.0", features = ["bevy"] }
 //! ```
 //!
 //! Intersection methods are not available without this feature.
@@ -33,8 +35,8 @@
 //!
 //! - `Unsigned` arithmetics, bitwise operations.
 //! - Tree structure is represented by flat, reusable [`Pool`](`pool::Pool`). Removed data is marked only.
-//! - Few memory allocations. [`heapless`](https://docs.rs/heapless/) structures are used.
-//! - No smart pointers (RC, RefCell e.t.c)
+//! - Few memory allocations. [`smallvec`] and [`heapless`] structures are used.
+//! - No smart pointers ([`Rc`](`std::rc::Rc`), [`RefCell`](std::cell::RefCell) e.t.c)
 //!
 //! Compensation for the inconvenience is perfomance.
 //!
@@ -62,7 +64,7 @@
 //!
 //! It must be any [`Unsigned`](`num::Unsigned`) type (`u8`, `u16`, `u32`, `u64`, `u128` or `usize`).
 //!
-//! Implement [`Position`] for the handled type, so that it can return it's spatial coordinates.
+//! Implement [`Position`] or [`Volume`] for the handled type, so that it can return it's spatial coordinates.
 //!
 //! ```rust
 //! use bevy::math::{
@@ -204,10 +206,12 @@ use std::{
     sync::Arc,
 };
 
-// Implement on stored type to inform a tree
-// about object's spatial coordinates. You only need
-// to implement either Volume or Position implemnentations
-// and not both
+/// Implement to represent your object as a point in a [`tree`](tree::Octree)
+///
+/// Implement on stored type to inform a tree
+/// about object's spatial coordinates. You only need
+/// to implement either Volume or Position implemnentations
+/// and not both
 pub trait Position {
     type U: Unsigned;
 
@@ -225,10 +229,12 @@ where
     }
 }
 
-// Implement on stored type to inform a tree
-// about object's spatial volume. You only need
-// to implement either Volume or Position implemnentations
-// and not both
+/// Implement to represent your object as a volume in a [`tree`](tree::Octree).
+///
+/// Implement on stored type to inform a tree
+/// about object's spatial volume. You only need
+/// to implement either Volume or Position implemnentations
+/// and not both
 pub trait Volume {
     type U: Unsigned;
 

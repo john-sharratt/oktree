@@ -7,7 +7,9 @@ Fast octree implementation.
 
 ![Example](/assets/example.gif)
 
-Could be used with the Bevy game engine for fast processing of voxel data or as a standalone tree.
+Able to operate with [`Position`](https://docs.rs/oktree/latest/oktree/trait.Position) or [`Volume`](https://docs.rs/oktree/latest/oktree/trait.Volume) data.
+
+Could be used with the Bevy game engine or as a standalone tree.
 
 ## Available methods:
 
@@ -26,15 +28,15 @@ To enable bevy integrations:
 
 ```toml
 [dependencies]
-oktree = { version = "0.2.0", features = ["bevy"] }
+oktree = { version = "0.4.0", features = ["bevy"] }
 ```
 
 ### Optimizations:
 
 - `Unsigned` arithmetics, bitwise operations.
 - Tree structure is represented by flat, reusable pools. Removed data is marked only.
-- Few memory allocations. Heapless structures are used.
-- No smart pointers (RC, RefCell e.t.c)
+- Few memory allocations. [`Smallvec`](https://docs.rs/smallvec/) and [`Heapless`](https://docs.rs/heapless/) structures are used.
+- No smart pointers (`Rc`, `RefCell` e.t.c)
 
 Compensation for the inconvenience is perfomance.
 
@@ -63,7 +65,7 @@ You have to specify the type for the internal tree structure.
 
 It must be any `Unsigned` type (`u8`, `u16`, `u32`, `u64`, `u128` or `usize`).
 
-Implement `Position` for the handled type, so that it can return it's spatial coordinates.
+Implement [`Position`](https://docs.rs/oktree/latest/oktree/trait.Position) or [`Volume`](https://docs.rs/oktree/latest/oktree/trait.Volume) for the handled type, so that it can return it's spatial coordinates.
 
 ```rust
 use bevy::math::{
