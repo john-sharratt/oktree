@@ -60,6 +60,16 @@ impl<'a, U: Unsigned, T: Volume<U = U>> Entry<'a, U, T> {
         }
     }
 
+    /// Ensures a value is in the entry by inserting the default if empty, and returns
+    /// a mutable reference to the value in the entry.
+    #[inline]
+    pub fn or_try_insert(self, default: T) -> Result<OccupiedEntry<'a, U, T>, TreeError> {
+        match self {
+            Self::Occupied(entry) => Ok(entry),
+            Self::Vacant(entry) => entry.try_insert(default),
+        }
+    }
+
     /// Ensures a value is in the entry by inserting the result of the default function if empty,
     /// and returns a mutable reference to the value in the entry.
     #[inline]
@@ -70,18 +80,17 @@ impl<'a, U: Unsigned, T: Volume<U = U>> Entry<'a, U, T> {
         }
     }
 
-    /// Ensures a value is in the entry by trying to insert the result of function if empty,
-    /// and returns a mutable reference to the value in the entry if that function was
-    /// successful
+    /// Ensures a value is in the entry by inserting the result of the default function if empty,
+    /// and returns a mutable reference to the value in the entry.
     #[inline]
-    pub fn or_try_insert_with<F: FnOnce() -> Option<T>>(
+    pub fn or_try_insert_with<F: FnOnce() -> T>(
         self,
-        f: F,
-    ) -> Option<OccupiedEntry<'a, U, T>> {
-        Some(match self {
-            Self::Occupied(entry) => entry,
-            Self::Vacant(entry) => entry.insert(f()?),
-        })
+        default: F,
+    ) -> Result<OccupiedEntry<'a, U, T>, TreeError> {
+        match self {
+            Self::Occupied(entry) => Ok(entry),
+            Self::Vacant(entry) => entry.try_insert(default()),
+        }
     }
 
     /// Ensures a value is in the entry by inserting, if empty, the result of the default function.
@@ -100,6 +109,26 @@ impl<'a, U: Unsigned, T: Volume<U = U>> Entry<'a, U, T> {
             Self::Vacant(entry) => {
                 let value = default(entry.key());
                 entry.insert(value)
+            }
+        }
+    }
+
+    /// Ensures a value is in the entry by inserting, if empty, the result of the default function.
+    /// This method allows for generating key-derived values for insertion by providing the default
+    /// function a reference to the key that was moved during the `.entry(key)` method call.
+    ///
+    /// The reference to the moved key is provided so that cloning or copying the key is
+    /// unnecessary, unlike with `.or_insert_with(|| ... )`.
+    #[inline]
+    pub fn or_try_insert_with_key<F: FnOnce(&TUVec3<U>) -> T>(
+        self,
+        default: F,
+    ) -> Result<OccupiedEntry<'a, U, T>, TreeError> {
+        match self {
+            Self::Occupied(entry) => Ok(entry),
+            Self::Vacant(entry) => {
+                let value = default(entry.key());
+                entry.try_insert(value)
             }
         }
     }
@@ -261,5 +290,17 @@ impl<'a, U: Unsigned, T: Volume<U = U>> VacantEntry<'a, U, T> {
             key: self.key,
             element,
         }
+    }
+
+    /// Sets the value of the entry with the `VacantEntry`'s key,
+    /// and returns a mutable reference to it.
+    #[inline]
+    pub fn try_insert(self, value: T) -> Result<OccupiedEntry<'a, U, T>, TreeError> {
+        let element = self.base.insert(value)?;
+        Ok(OccupiedEntry {
+            base: self.base,
+            key: self.key,
+            element,
+        })
     }
 }
