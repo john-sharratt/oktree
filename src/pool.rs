@@ -230,22 +230,27 @@ impl<T> Pool<T> {
     /// Restores all the garbage elements back to real elements. Effectively
     /// this is a rollback of all the remove operations that happened
     pub fn restore_garbage(&mut self) {
+        let mut carry_over = Vec::with_capacity(self.garbage.len());
         for idx in self.garbage.drain(..) {
             let mut item = PoolItem::Empty;
             std::mem::swap(&mut self.vec[idx], &mut item);
             self.vec[idx] = match item {
                 PoolItem::Filled(item) => PoolItem::Filled(item),
                 PoolItem::Tombstone(item) => PoolItem::Filled(item),
-                PoolItem::Empty => PoolItem::Empty,
+                PoolItem::Empty => {
+                    carry_over.push(idx);
+                    PoolItem::Empty
+                }
             }
         }
+        self.garbage.extend(carry_over);
     }
 
     /// Collects all the garbage elements and removes them from the pool
     /// releasing the memory and invoking the destructor
     pub fn collect_garbage(&mut self) {
-        for idx in self.garbage.drain(..) {
-            self.vec[idx] = PoolItem::Empty;
+        for garbage in self.garbage.iter_mut() {
+            self.vec[*garbage] = PoolItem::Empty;
         }
     }
 
@@ -398,6 +403,7 @@ impl<T> Pool<T> {
         self.vec[index] = match item {
             PoolItem::Filled(item) => {
                 ret = Some(item);
+                self.garbage.push(index);
                 PoolItem::Empty
             }
             PoolItem::Tombstone(item) => {
