@@ -26,7 +26,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! oktree = { version = "0.4.0", features = ["bevy"] }
+//! oktree = { version = "0.4.1", features = ["bevy"] }
 //! ```
 //!
 //! Intersection methods are not available without this feature.
