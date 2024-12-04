@@ -349,13 +349,20 @@ pub enum TreeError {
     /// Only a [`Branch`](node::NodeType::Branch) [`Node`](node::Node) can be collapsed.
     CollapseNonEmpty(String),
 
+    /// [`Aabb`] bounds are not positive.
     NotPositive(String),
 
+    /// [`Aabb`] size should be the power of 2.
     NotPower2(String),
 
+    /// [`ElementId`] is already occupied by an item.
     AlreadyOccupied(String),
 
+    /// [`ElementId`] is not found in an [`tree`](tree::Octree)
     ElementNotFound(String),
+
+    /// [`tree`](tree::Octree)'s garbage is corrupted.
+    CorruptGarbage(String),
 }
 
 impl Error for TreeError {}
@@ -375,6 +382,7 @@ impl fmt::Display for TreeError {
             }
             TreeError::AlreadyOccupied(info) => write!(f, "Volume is already occupied. {info}"),
             TreeError::ElementNotFound(info) => write!(f, "Element not found. {info}"),
+            TreeError::CorruptGarbage(info) => write!(f, "Tree's garbage is corrupted. {info}"),
         }
     }
 }

@@ -137,7 +137,7 @@ fn octree_insert_using_clear(
 }
 
 fn octree_remove(tree: &mut Octree<usize, DummyCell<usize>>) {
-    tree.restore_garbage();
+    tree.restore_garbage().unwrap();
     for element in 0..tree.len() {
         let _ = tree.remove(element.into());
     }
