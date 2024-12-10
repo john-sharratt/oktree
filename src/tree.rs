@@ -240,7 +240,7 @@ where
     ) -> Result<(), TreeError> {
         let Removal { parent, node } = removal;
 
-        if self.nodes.is_garbaged(node) {
+        if self.nodes.is_garbage(node) {
             return Ok(());
         }
 
@@ -286,9 +286,10 @@ where
 
     /// Restores all the garbage elements back to real elements. Effectively
     /// this is a rollback of all the remove operations that happened
-    pub fn restore_garbage(&mut self) {
-        self.elements.restore_garbage();
-        self.nodes.restore_garbage();
+    pub fn restore_garbage(&mut self) -> Result<(), TreeError> {
+        self.elements.restore_garbage()?;
+        self.nodes.restore_garbage()?;
+        Ok(())
     }
 
     /// Search for the element at the [`point`](TUVec3)
@@ -336,7 +337,7 @@ where
 
     /// Returns the element if element exists and not garbaged.
     pub fn get_element(&self, element: ElementId) -> Option<&T> {
-        if self.elements.is_garbaged(element) {
+        if self.elements.is_garbage(element) {
             None
         } else {
             Some(&self.elements[element])
@@ -345,7 +346,7 @@ where
 
     /// Returns the element if element exists and not garbaged.
     pub fn get_element_mut(&mut self, element: ElementId) -> Option<&mut T> {
-        if self.elements.is_garbaged(element) {
+        if self.elements.is_garbage(element) {
             None
         } else {
             Some(&mut self.elements[element])
@@ -355,7 +356,7 @@ where
     /// Returns the element if element exists and not garbaged.
     pub fn get(&self, point: &TUVec3<U>) -> Option<&T> {
         let element = self.find(point)?;
-        if self.elements.is_garbaged(element) {
+        if self.elements.is_garbage(element) {
             None
         } else {
             Some(&self.elements[element])
@@ -365,7 +366,7 @@ where
     /// Returns the element if element exists and not garbaged.
     pub fn get_mut(&mut self, point: &TUVec3<U>) -> Option<&mut T> {
         let element = self.find(point)?;
-        if self.elements.is_garbaged(element) {
+        if self.elements.is_garbage(element) {
             None
         } else {
             Some(&mut self.elements[element])

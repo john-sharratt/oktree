@@ -11,7 +11,7 @@ use smallvec::SmallVec;
 use crate::{
     bounding::{Aabb, Unsigned},
     node::{Node, NodeType},
-    ElementId, NodeId, Volume,
+    ElementId, NodeId, TreeError, Volume,
 };
 
 /// [`PoolItem`] data structure that combines both the garbage flag
@@ -126,7 +126,7 @@ impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
     type Output = Node<U>;
 
     fn index(&self, index: NodeId) -> &Self::Output {
-        debug_assert!(!self.is_garbaged(index), "Indexing garbaged node: {index}");
+        debug_assert!(!self.is_garbage(index), "Indexing garbage node: {index}");
         self.get_unchecked(index)
     }
 }
@@ -140,7 +140,7 @@ impl<U: Unsigned> Index<NodeId> for Pool<Node<U>> {
 impl<U: Unsigned> IndexMut<NodeId> for Pool<Node<U>> {
     fn index_mut(&mut self, index: NodeId) -> &mut Self::Output {
         debug_assert!(
-            !self.is_garbaged(index),
+            !self.is_garbage(index),
             "Mut Indexing garbaged node: {index}"
         );
         self.get_mut_unchecked(index)
@@ -158,7 +158,7 @@ impl<T: Volume> Index<ElementId> for Pool<T> {
 
     fn index(&self, index: ElementId) -> &Self::Output {
         debug_assert!(
-            !self.is_garbaged(index),
+            !self.is_garbage(index),
             "Indexing garbaged element: {index}"
         );
         self.get_unchecked(index)
@@ -174,7 +174,7 @@ impl<T: Volume> Index<ElementId> for Pool<T> {
 impl<T: Volume> IndexMut<ElementId> for Pool<T> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
-            !self.is_garbaged(index),
+            !self.is_garbage(index),
             "Mut Indexing garbaged element: {index}"
         );
         self.get_mut_unchecked(index)
@@ -192,7 +192,7 @@ impl Index<ElementId> for Pool<NodeId> {
 
     fn index(&self, index: ElementId) -> &Self::Output {
         debug_assert!(
-            !self.is_garbaged(index),
+            !self.is_garbage(index),
             "Indexing garbaged element: {index}"
         );
         self.get_unchecked(index)
@@ -208,7 +208,7 @@ impl Index<ElementId> for Pool<NodeId> {
 impl IndexMut<ElementId> for Pool<NodeId> {
     fn index_mut(&mut self, index: ElementId) -> &mut Self::Output {
         debug_assert!(
-            !self.is_garbaged(index),
+            !self.is_garbage(index),
             "Mut Indexing garbaged element: {index}"
         );
         self.get_mut_unchecked(index)
@@ -229,13 +229,17 @@ impl<T> Pool<T> {
 
     /// Restores all the garbage elements back to real elements. Effectively
     /// this is a rollback of all the remove operations that happened
-    pub fn restore_garbage(&mut self) {
+    pub fn restore_garbage(&mut self) -> Result<(), TreeError> {
+        let mut is_err = false;
         let mut carry_over = Vec::with_capacity(self.garbage.len());
         for idx in self.garbage.drain(..) {
             let mut item = PoolItem::Empty;
             std::mem::swap(&mut self.vec[idx], &mut item);
             self.vec[idx] = match item {
-                PoolItem::Filled(item) => PoolItem::Filled(item),
+                PoolItem::Filled(item) => {
+                    is_err = true;
+                    PoolItem::Filled(item)
+                }
                 PoolItem::Tombstone(item) => PoolItem::Filled(item),
                 PoolItem::Empty => {
                     carry_over.push(idx);
@@ -244,6 +248,13 @@ impl<T> Pool<T> {
             }
         }
         self.garbage.extend(carry_over);
+
+        match is_err {
+            true => Err(TreeError::CorruptGarbage(
+                "PollItem::Filled element was garbaged".into(),
+            )),
+            false => Ok(()),
+        }
     }
 
     /// Collects all the garbage elements and removes them from the pool
@@ -467,7 +478,7 @@ impl<T> Pool<T> {
     }
 
     #[inline(always)]
-    pub fn is_garbaged(&self, element: impl Into<ElementId>) -> bool {
+    pub fn is_garbage(&self, element: impl Into<ElementId>) -> bool {
         let idx: usize = Into::<ElementId>::into(element).into();
         match &self.vec[idx] {
             PoolItem::Filled(_) => false,
@@ -818,5 +829,121 @@ mod tests {
         let element_id = pool.insert(element);
         let element = &pool[element_id];
         assert_eq!(element.pos, TUVec3::new(1, 2, 3));
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut pool = Pool::<TUVec3u8>::with_capacity(16);
+        for i in 0..16 {
+            assert_eq!(pool.insert(TUVec3u8::new(i, i, i)), ElementId(i as u32));
+            assert_eq!(pool.len(), (i + 1) as usize);
+            assert_eq!(pool.garbage_len(), 0_usize);
+        }
+
+        for i in 0..8 {
+            pool.tombstone(NodeId(i));
+            assert_eq!(pool.len(), (15 - i) as usize);
+            assert_eq!(pool.garbage_len(), (i + 1) as usize);
+        }
+
+        for i in 0..8 {
+            pool.remove(NodeId(i));
+            assert_eq!(pool.len(), 8_usize);
+            assert_eq!(pool.garbage_len(), 8_usize);
+        }
+
+        for i in 8..16 {
+            pool.remove(NodeId(i));
+            assert_eq!(pool.len(), (15 - i) as usize);
+            assert_eq!(pool.garbage_len(), (i + 1) as usize);
+        }
+    }
+
+    #[test]
+    fn test_collect_garbage() {
+        let mut pool = Pool::<TUVec3u8>::with_capacity(16);
+
+        for i in 0..16 {
+            assert_eq!(pool.insert(TUVec3u8::new(i, i, i)), ElementId(i as u32));
+        }
+
+        for i in 0..4 {
+            pool.tombstone(NodeId(i));
+        }
+
+        for i in 4..8 {
+            pool.remove(NodeId(i));
+        }
+
+        pool.collect_garbage();
+
+        assert_eq!(pool.garbage_len(), 8);
+        assert_eq!(pool.len(), 8);
+    }
+
+    #[test]
+    fn test_restore_garbage_tombstone() {
+        let mut pool = Pool::<TUVec3u8>::with_capacity(16);
+
+        for i in 0..16 {
+            assert_eq!(pool.insert(TUVec3u8::new(i, i, i)), ElementId(i as u32));
+        }
+
+        pool.tombstone(ElementId(4));
+        pool.tombstone(ElementId(6));
+        pool.tombstone(ElementId(10));
+
+        assert_eq!(pool.len(), 13);
+        assert_eq!(pool.garbage_len(), 3);
+
+        assert!(pool.restore_garbage().is_ok());
+
+        assert_eq!(pool.len(), 16);
+        assert_eq!(pool.garbage_len(), 0);
+    }
+
+    #[test]
+    fn test_restore_garbage_remove() {
+        let mut pool = Pool::<TUVec3u8>::with_capacity(16);
+
+        for i in 0..16 {
+            assert_eq!(pool.insert(TUVec3u8::new(i, i, i)), ElementId(i as u32));
+        }
+
+        pool.remove(ElementId(4));
+        pool.remove(ElementId(6));
+        pool.remove(ElementId(10));
+
+        assert_eq!(pool.len(), 13);
+        assert_eq!(pool.garbage_len(), 3);
+
+        assert!(pool.restore_garbage().is_ok());
+
+        assert_eq!(pool.len(), 13);
+        assert_eq!(pool.garbage_len(), 3);
+    }
+
+    #[test]
+    fn test_restore_garbage_remove_tombstone() {
+        let mut pool = Pool::<TUVec3u8>::with_capacity(16);
+
+        for i in 0..16 {
+            assert_eq!(pool.insert(TUVec3u8::new(i, i, i)), ElementId(i as u32));
+        }
+
+        pool.tombstone(ElementId(4));
+        pool.remove(ElementId(6));
+        pool.tombstone(ElementId(8));
+        pool.remove(ElementId(10));
+        pool.tombstone(ElementId(12));
+        pool.remove(ElementId(14));
+
+        assert_eq!(pool.len(), 10);
+        assert_eq!(pool.garbage_len(), 6);
+
+        assert!(pool.restore_garbage().is_ok());
+
+        assert_eq!(pool.len(), 13);
+        assert_eq!(pool.garbage_len(), 3);
     }
 }
