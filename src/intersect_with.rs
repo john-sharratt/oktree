@@ -161,9 +161,6 @@ where
                             // iteration) then we fallback to recursive calls.
                             if stack.push(*child).is_err() {
                                 self.rintersect_with_for_each(*child, what, actor);
-                                for child in iter.by_ref() {
-                                    self.rintersect_with_for_each(*child, what, actor);
-                                }
                             }
                         }
                     }
@@ -204,7 +201,7 @@ where
     {
         // We use a heapless stack to loop through the nodes until we complete the intersect however
         // if the stack becomes full then then we fallbackon recursive calls.
-        let mut stack = HVec::<_, 128>::new();
+        let mut stack = HVec::<_, 32>::new();
         stack.push(node).unwrap();
         while let Some(node) = stack.pop() {
             let n = self.nodes[node];
@@ -220,17 +217,43 @@ where
                 }
 
                 NodeType::Branch(branch) => {
-                    if !what(&n.aabb) {
+                    if what(&n.aabb) {
                         let mut iter = branch.children.iter();
                         while let Some(child) = iter.next() {
-                            // If we can't push to the stack (to be processed on the next loop
-                            // iteration) then we fallback to recursive calls.
                             if stack.push(*child).is_err() {
                                 self.anti_rintersect_with_for_each(*child, what, actor);
-                                for child in iter.by_ref() {
-                                    self.anti_rintersect_with_for_each(*child, what, actor);
-                                }
                             }
+                        }
+                    } else {
+                        for child in branch.children.iter() {
+                            self.anti_rintersect_with_for_each_trigger_all(*child, actor);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn anti_rintersect_with_for_each_trigger_all<F2>(&self, node: NodeId, actor: &mut F2)
+    where
+        F2: FnMut(&T),
+    {
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
+
+                NodeType::Leaf(e) => {
+                    actor(&self.elements[e]);
+                }
+
+                NodeType::Branch(branch) => {
+                    let mut iter = branch.children.iter();
+                    while let Some(child) = iter.next() {
+                        if stack.push(*child).is_err() {
+                            self.anti_rintersect_with_for_each_trigger_all(*child, actor);
                         }
                     }
                 }
