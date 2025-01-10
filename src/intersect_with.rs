@@ -171,4 +171,70 @@ where
             }
         }
     }
+
+    /// Anti intersect [`Octree`] with a custom intersection closure reusing a
+    /// supplied [`vector`](Vec) rather than allocating a new one. Each element
+    /// that intersects with the volume is passed to the supplied closure.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// let mut elements = Vec::new();
+    /// tree.anti_intersect_with_for_each(|_| true, |e| elements.push(e.clone()) );
+    /// assert_eq!(elements, vec![c1]);
+    /// ```
+    pub fn anti_intersect_with_for_each<F, F2>(&self, what: F, mut actor: F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(&T),
+    {
+        self.anti_rintersect_with_for_each(self.root, &what, &mut actor);
+    }
+
+    fn anti_rintersect_with_for_each<F, F2>(&self, node: NodeId, what: &F, actor: &mut F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(&T),
+    {
+        // We use a heapless stack to loop through the nodes until we complete the intersect however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 128>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
+
+                NodeType::Leaf(e) => {
+                    let e = &self.elements[e];
+                    let aabb = e.volume();
+                    if !what(&aabb) {
+                        actor(e);
+                    };
+                }
+
+                NodeType::Branch(branch) => {
+                    if !what(&n.aabb) {
+                        let mut iter = branch.children.iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(*child).is_err() {
+                                self.anti_rintersect_with_for_each(*child, what, actor);
+                                for child in iter.by_ref() {
+                                    self.anti_rintersect_with_for_each(*child, what, actor);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
