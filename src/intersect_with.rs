@@ -169,6 +169,199 @@ where
         }
     }
 
+    /// Intersect [`Octree`] with a custom intersection closure reusing a
+    /// supplied [`vector`](Vec) rather than allocating a new one. Each element
+    /// that intersects with the volume is passed to the supplied closure.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// let mut elements = Vec::new();
+    /// tree.intersect_with_for_each(|_| true, |e| elements.push(e.clone()) );
+    /// assert_eq!(elements, vec![c1]);
+    /// ```
+    pub fn intersect_with_for_each_mut<F, F2>(&mut self, what: F, mut actor: F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(&mut T),
+    {
+        self.rintersect_with_for_each_mut(self.root, &what, &mut actor);
+    }
+
+    fn rintersect_with_for_each_mut<F, F2>(&mut self, node: NodeId, what: &F, actor: &mut F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(&mut T),
+    {
+        // We use a heapless stack to loop through the nodes until we complete the intersect however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
+
+                NodeType::Leaf(id) => {
+                    let e = &mut self.elements[id];
+                    let aabb = e.volume();
+                    if what(&aabb) {
+                        actor(e);
+                    };
+                }
+
+                NodeType::Branch(branch) => {
+                    if what(&n.aabb) {
+                        let mut iter = branch.children.iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(*child).is_err() {
+                                self.rintersect_with_for_each_mut(*child, what, actor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Intersect [`Octree`] with a custom intersection closure reusing a
+    /// supplied [`vector`](Vec) rather than allocating a new one. Each element
+    /// that intersects with the volume is passed to the supplied closure.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// let mut elements = Vec::new();
+    /// tree.intersect_with_for_each(|_| true, |e| elements.push(e.clone()) );
+    /// assert_eq!(elements, vec![c1]);
+    /// ```
+    pub fn intersect_with_for_each_with_ids<F, F2>(&self, what: F, mut actor: F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(ElementId, &T),
+    {
+        self.rintersect_with_for_each_with_ids(self.root, &what, &mut actor);
+    }
+
+    fn rintersect_with_for_each_with_ids<F, F2>(&self, node: NodeId, what: &F, actor: &mut F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(ElementId, &T),
+    {
+        // We use a heapless stack to loop through the nodes until we complete the intersect however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
+
+                NodeType::Leaf(id) => {
+                    let e = &self.elements[id];
+                    let aabb = e.volume();
+                    if what(&aabb) {
+                        actor(id, e);
+                    };
+                }
+
+                NodeType::Branch(branch) => {
+                    if what(&n.aabb) {
+                        let mut iter = branch.children.iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(*child).is_err() {
+                                self.rintersect_with_for_each_with_ids(*child, what, actor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Intersect [`Octree`] with a custom intersection closure reusing a
+    /// supplied [`vector`](Vec) rather than allocating a new one. Each element
+    /// that intersects with the volume is passed to the supplied closure.
+    ///
+    /// ```rust
+    /// use oktree::prelude::*;
+    /// use bevy::prelude::*;
+    ///
+    /// let mut tree = Octree::from_aabb(Aabb::new(TUVec3::splat(16), 16).unwrap());
+    ///
+    /// let c1 = TUVec3u8::new(1u8, 1, 1);
+    /// let c1_id = tree.insert(c1).unwrap();
+    ///
+    /// let mut elements = Vec::new();
+    /// tree.intersect_with_for_each(|_| true, |e| elements.push(e.clone()) );
+    /// assert_eq!(elements, vec![c1]);
+    /// ```
+    pub fn intersect_with_for_each_with_ids_mut<F, F2>(&mut self, what: F, mut actor: F2)
+    where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(ElementId, &mut T),
+    {
+        self.rintersect_with_for_each_with_ids_mut(self.root, &what, &mut actor);
+    }
+
+    fn rintersect_with_for_each_with_ids_mut<F, F2>(
+        &mut self,
+        node: NodeId,
+        what: &F,
+        actor: &mut F2,
+    ) where
+        F: Fn(&Aabb<U>) -> bool,
+        F2: FnMut(ElementId, &mut T),
+    {
+        // We use a heapless stack to loop through the nodes until we complete the intersect however
+        // if the stack becomes full then then we fallbackon recursive calls.
+        let mut stack = HVec::<_, 32>::new();
+        stack.push(node).unwrap();
+        while let Some(node) = stack.pop() {
+            let n = self.nodes[node];
+            match n.ntype {
+                NodeType::Empty => (),
+
+                NodeType::Leaf(id) => {
+                    let e = &mut self.elements[id];
+                    let aabb = e.volume();
+                    if what(&aabb) {
+                        actor(id, e);
+                    };
+                }
+
+                NodeType::Branch(branch) => {
+                    if what(&n.aabb) {
+                        let mut iter = branch.children.iter();
+                        while let Some(child) = iter.next() {
+                            // If we can't push to the stack (to be processed on the next loop
+                            // iteration) then we fallback to recursive calls.
+                            if stack.push(*child).is_err() {
+                                self.rintersect_with_for_each_with_ids_mut(*child, what, actor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Anti intersect [`Octree`] with a custom intersection closure reusing a
     /// supplied [`vector`](Vec) rather than allocating a new one. Each element
     /// that intersects with the volume is passed to the supplied closure.
